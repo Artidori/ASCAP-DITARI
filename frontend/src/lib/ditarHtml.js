@@ -8,7 +8,7 @@ export function buildDitarHtml(d) {
   const r = p.rezultatet || {};
   const f1 = p.faza1 || {}, f2 = p.faza2 || {}, f3 = p.faza3 || {};
   const dif = p.diferencimi || {};
-  const v = p.vleresimi || [];
+  const v = (p.vleresimi || []).slice(0, 3);
   const det = p.detyrat || [];
   const ref = p.refleksioni || [];
   const akLabel = d.kaAk ? (d.akInitials ? `Nxënësi me AK (${esc(d.akInitials)}):` : "Nxënësi me AK:") : "Mbështetja:";
@@ -23,7 +23,7 @@ export function buildDitarHtml(d) {
 <tr>${td(`${b("Lidhja e temës me njohuritë e mëparshme të nxënësve")}<br><br>10 minuta`, 2)}${td(`${b("Teknika: " + esc(f1.teknika))}<br>${esc(f1.pershkrimi)}`, 3)}</tr>
 <tr>${td(`${b("Ndërtimi i njohurive të reja")}<br><br>25 minuta`, 2)}${td(`${b("Teknika: " + esc(f2.teknika))}<br>${b("Hapi 1:")} ${esc(f2.hapi1)}<br>${b("Hapi 2:")} ${esc(f2.hapi2)}`, 3)}</tr>
 <tr>${td(`${b("Prezantimi dhe demonstrimi i rezultateve")}<br><br>10 minuta`, 2)}${td(`${b("Teknika: " + esc(f3.teknika))}<br>${esc(f3.pershkrimi)}`, 3)}</tr>
-<tr>${td(`${b("Vlerësimi dhe feedback-u:")}<br>${v.map((x, i) => `&nbsp;&nbsp;&nbsp;&nbsp;${b(`Niveli ${i + 1}:`)} ${esc(String(x).replace(/^Niveli\s*\d+\s*[:.-]?\s*/i, ""))}`).join("<br>")}`, 5)}</tr>
+<tr>${td(`${b("Vlerësimi dhe feedback-u:")}<br>${v.map((x, i) => `&nbsp;&nbsp;&nbsp;&nbsp;${b(`Niveli ${i + 1}:`)} ${esc(String(x).replace(/^Niveli\s*\d+\s*[:.-]?\s*/i, ""))}`).join("<br>")}${p.feedback ? `<br>${b("Feedback-u:")} ${esc(p.feedback)}` : ""}`, 5)}</tr>
 <tr>${td(`${b("Diferencimi (Nxënësit e avancuar dhe me AK):")}<br>${b("Nxënësit e avancuar:")} ${esc(dif.avancuar)}<br>${b(akLabel)} ${esc(dif.ak)}`, 5)}</tr>
 <tr>${td(`${b("Detyrat dhe puna e pavarur:")}<br>${det.map((x, i) => `${b(`Detyra ${i + 1} (${["Bazë", "Mesatare", "E avancuar"][i] || ""}):`)} ${esc(String(x).replace(/^Detyr[ëe][^:]*:\s*/i, ""))}`).join("<br>")}`, 5)}</tr>
 <tr>${td(`${b("Refleksioni i mësuesit: (Të plotësohet pas mësimit):")}<br>${ref.map((x) => `${esc(x)} ______________________________`).join("<br>")}`, 5)}</tr>

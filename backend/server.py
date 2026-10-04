@@ -193,7 +193,8 @@ SCHEMA = """{
  "faza1": {"teknika": "...", "pershkrimi": "veprimtari konkrete për lidhjen me njohuritë e mëparshme"},
  "faza2": {"teknika": "...", "hapi1": "shpjegim konkret i koncepteve nga libri", "hapi2": "ushtrime/punë konkrete nga libri"},
  "faza3": {"teknika": "...", "pershkrimi": "..."},
- "vleresimi": ["Niveli 1 ...", "Niveli 2 ...", "Niveli 3 ...", "Niveli 4 ..."],
+ "vleresimi": ["Niveli 1 ...", "Niveli 2 ...", "Niveli 3 ..."],
+ "feedback": "1-2 fjali konkrete feedback-u që mësuesi u jep nxënësve për këtë temë",
  "diferencimi": {"avancuar": "...", "ak": "..."},
  "detyrat": ["Detyrë bazë ...", "Detyrë mesatare ...", "Detyrë e avancuar ..."],
  "refleksioni": ["pyetje refleksioni 1", "pyetje refleksioni 2"]
