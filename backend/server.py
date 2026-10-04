@@ -211,7 +211,11 @@ FUSHA = {
     "Italisht": "Gjuhët dhe komunikimi", "Muzikë": "Arte", "Art Pamor": "Arte",
     "Edukim Fizik": "Edukim fizik, sporte dhe shëndet", "Histori": "Shoqëria dhe mjedisi",
     "Gjeografi": "Shoqëria dhe mjedisi", "Qytetari": "Shoqëria dhe mjedisi", "TIK": "TIK dhe Teknologji",
+    "Kërcim": "Arte", "Teatër": "Arte", "Aftësim Teknologjik": "Teknologji dhe TIK",
+    "Dituri Natyre": "Shkencat e natyrës", "Kurrikula në Bazë Shkolle": "Kurrikula në bazë shkolle",
 }
+
+GJUHA = {"Anglisht": "ANGLISHT (English)", "Italisht": "ITALISHT (Italiano)"}
 
 
 def shkalla(klasa: str) -> str:
@@ -262,11 +266,15 @@ async def generate(body: GenerateReq, x_license: Optional[str] = Header(None)):
         raise HTTPException(400, "Maksimumi 6 foto për një ditar.")
 
     ak = f"Ka nxënës me AK (inicialet: {body.akInitials or 'pa inicialë'}) – përfshi masa konkrete mbështetëse." if body.kaAk else "Nuk ka nxënës me AK."
+    gjuha = GJUHA.get(body.lenda)
+    gj = (f"\nE RËNDËSISHME: Shkruaj TË GJITHË përmbajtjen e JSON-it (vlerat) VETËM në {gjuha}, jo në shqip. "
+          "Çelësat e JSON-it mbeten siç janë.") if gjuha else ""
     prompt = f"""Harto ditarin për: Lënda: {body.lenda}; {body.klasa}; Shkalla {shkalla(body.klasa)}.
 Tema e dhënë nga mësuesi: "{body.tema or '(nxirre nga fotot e librit)'}".
 {ak}
 {"Analizo me kujdes " + str(len(body.images)) + " fotot e faqeve të librit sipas radhës dhe shpërndaj informacionin e tyre (koncepte, shembuj, ushtrime, fjalë kyçe, faqe) në pjesët përkatëse të ditarit." if body.images else "Nuk ka foto; bazohu te tema."}
 Ora zgjat 45 min (10 + 25 + 10). Ji specifik për përmbajtjen, jo i përgjithshëm.
+Mos shkruaj parashtesa si "Niveli 1:" ose "Detyra 1:" në vlera.{gj}
 Kthe JSON me këtë strukturë saktësisht:
 {SCHEMA}"""
 
