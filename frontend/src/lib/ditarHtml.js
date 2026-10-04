@@ -44,13 +44,16 @@ export function buildDitarHtml(d) {
 </table>`;
 }
 
-export function downloadWord(html, name) {
-  const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:'Times New Roman',Times,serif;font-size:10pt;}</style></head><body>${html}</body></html>`;
-  const blob = window.htmlDocx
-    ? window.htmlDocx.asBlob(doc)
-    : new Blob(["\ufeff", doc], { type: "application/msword" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${name}.${window.htmlDocx ? "docx" : "doc"}`;
-  a.click();
+export const headerText = (d) => `Mësuesi/ja: ${d.mesuesi} | Viti Shkollor: ${d.vitiShkollor || ""}`;
+
+export function fitFontSize(html) {
+  const box = document.createElement("div");
+  box.style.cssText = "position:absolute;left:-9999px;top:0;width:180mm;font-family:'Times New Roman',serif;font-size:12pt;";
+  box.innerHTML = html;
+  box.querySelectorAll("table").forEach((t) => { t.style.fontSize = "12pt"; });
+  document.body.appendChild(box);
+  const mm = box.offsetWidth / 180;
+  const fits = box.offsetHeight <= 255 * mm;
+  box.remove();
+  return fits ? 12 : 11;
 }

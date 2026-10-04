@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, Header, HTTPException
+from fastapi import FastAPI, APIRouter, Header, HTTPException, Response
+from docx_builder import build_docx
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -310,6 +311,22 @@ async def save_html(did: str, body: SaveHtml, x_license: Optional[str] = Header(
     lic = await require_license(x_license)
     await db.ditare.update_one({"id": did, "kodi": lic["kodi"]}, {"$set": {"html": body.html}})
     return {"ok": True}
+
+
+class DocxReq(BaseModel):
+    html: str
+    fontSize: int = 12
+
+
+@api.post("/ditar/{did}/docx")
+async def ditar_docx(did: str, body: DocxReq, x_license: Optional[str] = Header(None)):
+    lic = await require_license(x_license)
+    d = await db.ditare.find_one({"id": did, "kodi": lic["kodi"]}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Ditari nuk u gjet")
+    header = f"Mësuesi/ja: {d['mesuesi']} | Viti Shkollor: {d.get('vitiShkollor') or viti_aktual()}"
+    data = build_docx(body.html, 11 if body.fontSize <= 11 else 12, header)
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 @api.get("/ditar")
