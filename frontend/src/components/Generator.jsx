@@ -70,7 +70,7 @@ export const Generator = ({ user, onLogout }) => {
             <label><span className="lbl">Klasa</span>
               <select className="inp" value={f.klasa} onChange={set("klasa")} data-testid="klasa-select">{KLASAT.map((k) => <option key={k}>{k}</option>)}</select>
             </label>
-            <label><span className="lbl">Data</span><input className="inp" value={f.data} onChange={set("data")} data-testid="data-input" /></label>
+            <label><span className="lbl">Data</span><input type="date" className="inp cursor-pointer" value={f.data.split(".").reverse().join("-")} onChange={(e) => e.target.value && setF({ ...f, data: e.target.value.split("-").reverse().join(".") })} onClick={(e) => e.target.showPicker?.()} data-testid="data-input" /></label>
             <label><span className="lbl">Viti shkollor</span><input className="inp" value={f.vitiShkollor} onChange={set("vitiShkollor")} data-testid="viti-input" /></label>
           </div>
           <label className="block"><span className="lbl">Tema mësimore <span className="normal-case font-normal">(opsionale nëse ngarkoni foto)</span></span>
