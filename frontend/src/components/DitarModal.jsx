@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { X, Download, Save, Printer, Share2 } from "lucide-react";
 import { buildDitarHtml, fitFontSize, headerText } from "../lib/ditarHtml";
-import { licApi, errMsg } from "../lib/api";
+import { licApi, errMsg, API } from "../lib/api";
 
 export const DitarModal = ({ ditar, onClose }) => {
   const ref = useRef();
@@ -10,6 +10,22 @@ export const DitarModal = ({ ditar, onClose }) => {
   const html = ditar.html || buildDitarHtml(ditar);
   const name = `Ditari_${ditar.lenda}_${ditar.klasa}_${ditar.data}`.replace(/[^\wëçËÇ.-]+/g, "_");
   const header = headerText(ditar);
+  const [ready, setReady] = useState(null);
+  const timer = useRef();
+
+  const prepare = () => {
+    setReady(null);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      try {
+        const content = ref.current.innerHTML;
+        const pt = fitFontSize(content);
+        const [file, { data }] = await Promise.all([getFile(), licApi().post(`/ditar/${ditar.id}/share`, { html: content, fontSize: pt })]);
+        setReady({ file, url: `${API}/share/${data.token}` });
+      } catch { /* retried on next edit */ }
+    }, 800);
+  };
+  useEffect(() => { prepare(); return () => clearTimeout(timer.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     try { await licApi().put(`/ditar/${ditar.id}`, { html: ref.current.innerHTML }); ditar.html = ref.current.innerHTML; toast.success("Ndryshimet u ruajtën"); }
@@ -28,13 +44,19 @@ export const DitarModal = ({ ditar, onClose }) => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(f); a.download = f.name; a.click();
   });
-  const share = run(async () => {
-    const f = await getFile();
-    if (navigator.canShare?.({ files: [f] })) return navigator.share({ files: [f], title: f.name, text: `Ditari: ${ditar.tema}` });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(f); a.download = f.name; a.click();
-    toast.info("Ky shfletues nuk lejon ndarjen direkt. Ditari u shkarkua — dërgojeni nga WhatsApp si dokument.", { duration: 7000 });
-  });
+  const share = async () => {
+    if (!ready) return toast.info("Dokumenti po përgatitet, provoni pas pak sekondash.");
+    const text = `Ditari: ${ditar.lenda}, ${ditar.klasa}, ${ditar.data}`;
+    const withFile = navigator.canShare?.({ files: [ready.file] });
+    try {
+      if (withFile) await navigator.share({ files: [ready.file], title: ready.file.name });
+      else if (navigator.share) await navigator.share({ title: text, text: `${text}\nShkarko Word: `, url: ready.url });
+      else window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\nShkarko Word: ${ready.url}`)}`, "_blank");
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\nShkarko Word: ${ready.url}`)}`, "_blank");
+    }
+  };
   const print = () => {
     const content = ref.current.innerHTML;
     const pt = fitFontSize(content);
@@ -54,14 +76,14 @@ export const DitarModal = ({ ditar, onClose }) => {
           <div className="flex flex-wrap gap-1">
             <button onClick={save} className="btn-ghost" data-testid="ditar-save-btn"><Save size={16} /> Ruaj</button>
             <button onClick={print} className="btn-ghost" data-testid="ditar-print-btn"><Printer size={16} /> Printo</button>
-            <button onClick={share} disabled={busy} className="btn-ghost" data-testid="ditar-share-btn"><Share2 size={16} /> Ndaj</button>
+            <button onClick={share} className="btn-ghost" data-testid="ditar-share-btn"><Share2 size={16} /> {ready ? "Ndaj" : "Ndaj..."}</button>
             <button onClick={download} disabled={busy} className="btn-primary" data-testid="ditar-download-word-btn"><Download size={16} /> {busy ? "..." : "Shkarko Word"}</button>
             <button onClick={onClose} className="btn-ghost" data-testid="ditar-close-btn"><X size={18} /></button>
           </div>
         </div>
         <div className="overflow-auto p-3 sm:p-6">
           <p className="text-black font-bold mb-2" style={{ fontFamily: "'Times New Roman', serif" }} data-testid="ditar-header">{header}</p>
-          <div ref={ref} contentEditable suppressContentEditableWarning className="outline-none text-black" data-testid="ditar-content" dangerouslySetInnerHTML={{ __html: html }} />
+          <div ref={ref} contentEditable suppressContentEditableWarning className="outline-none text-black" data-testid="ditar-content" onInput={prepare} dangerouslySetInnerHTML={{ __html: html }} />
         </div>
       </div>
     </div>

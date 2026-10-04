@@ -201,6 +201,22 @@ async def activate(body: Activate):
     return {**lic, **upd}
 
 
+class LicLogin(BaseModel):
+    kodi: str
+    email: str
+
+
+@api.post("/license/login")
+async def lic_login(body: LicLogin):
+    lic = await db.licenses.find_one({"kodi": body.kodi.strip().upper()}, {"_id": 0})
+    if not lic or not lic.get("aktivizuar") or lic.get("email", "").lower() != body.email.strip().lower():
+        raise HTTPException(401, "Kodi ose email-i është i pasaktë, ose licenca nuk është aktivizuar ende.")
+    if not lic.get("aktiv"):
+        raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
+    check_expiry(lic)
+    return lic
+
+
 @api.get("/license/me")
 async def me(x_license: Optional[str] = Header(None)):
     return await require_license(x_license)
@@ -327,6 +343,29 @@ async def ditar_docx(did: str, body: DocxReq, x_license: Optional[str] = Header(
     header = f"Mësuesi/ja: {d['mesuesi']} | Viti Shkollor: {d.get('vitiShkollor') or viti_aktual()}"
     data = build_docx(body.html, 11 if body.fontSize <= 11 else 12, header)
     return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+@api.post("/ditar/{did}/share")
+async def ditar_share(did: str, body: DocxReq, x_license: Optional[str] = Header(None)):
+    lic = await require_license(x_license)
+    d = await db.ditare.find_one({"id": did, "kodi": lic["kodi"]}, {"_id": 0, "share_token": 1})
+    if d is None:
+        raise HTTPException(404, "Ditari nuk u gjet")
+    token = d.get("share_token") or uuid.uuid4().hex
+    await db.ditare.update_one({"id": did}, {"$set": {"share_token": token, "share_html": body.html, "share_font": body.fontSize}})
+    return {"token": token}
+
+
+@api.get("/share/{token}")
+async def shared_docx(token: str):
+    d = await db.ditare.find_one({"share_token": token}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Dokumenti nuk u gjet")
+    header = f"Mësuesi/ja: {d['mesuesi']} | Viti Shkollor: {d.get('vitiShkollor') or viti_aktual()}"
+    data = build_docx(d["share_html"], 11 if d.get("share_font", 12) <= 11 else 12, header)
+    name = re.sub(r"[^\w.-]+", "_", f"Ditari_{d['lenda']}_{d['klasa']}_{d['data']}", flags=re.ASCII)
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers={"Content-Disposition": f'attachment; filename="{name}.docx"'})
 
 
 @api.get("/ditar")

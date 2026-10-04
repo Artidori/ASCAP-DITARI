@@ -12,7 +12,8 @@ const Field = ({ label, children }) => (
 );
 
 export const LoginScreen = ({ onLogin }) => {
-  const [f, setF] = useState({ emri: "", mbiemri: "", email: "", kodi: "", n: 1, l: ["Gjuhë Shqipe", "Matematikë", "Anglisht"] });
+  const [mode, setMode] = useState("hyr");
+  const [f, setF] = useState({ emri: "", mbiemri: "", email: localStorage.getItem("ascap_email") || "", kodi: localStorage.getItem("ascap_last_kodi") || "", n: 1, l: ["Gjuhë Shqipe", "Matematikë", "Anglisht"] });
   const [busy, setBusy] = useState(false);
   const [admin, setAdmin] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -20,15 +21,20 @@ export const LoginScreen = ({ onLogin }) => {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!f.emri || !f.mbiemri || !f.email || !f.kodi) return toast.error("Plotësoni të gjitha fushat!");
+    const aktivizo = mode === "aktivizo";
+    if (!f.email || !f.kodi || (aktivizo && (!f.emri || !f.mbiemri))) return toast.error("Plotësoni të gjitha fushat!");
     setBusy(true);
     try {
-      const { data } = await axios.post(`${API}/license/activate`, {
-        kodi: f.kodi, emri: f.emri, mbiemri: f.mbiemri, email: f.email,
-        numriLendeve: Number(f.n), lendet: f.l.slice(0, Number(f.n)),
-      });
+      const { data } = aktivizo
+        ? await axios.post(`${API}/license/activate`, {
+          kodi: f.kodi, emri: f.emri, mbiemri: f.mbiemri, email: f.email,
+          numriLendeve: Number(f.n), lendet: f.l.slice(0, Number(f.n)),
+        })
+        : await axios.post(`${API}/license/login`, { kodi: f.kodi, email: f.email });
       localStorage.setItem("ascap_kodi", data.kodi);
-      toast.success("Licenca u aktivizua me sukses!");
+      localStorage.setItem("ascap_last_kodi", data.kodi);
+      localStorage.setItem("ascap_email", data.email);
+      toast.success(aktivizo ? "Licenca u aktivizua me sukses!" : `Mirë se erdhët, ${data.emri}!`);
       onLogin(data);
     } catch (err) { toast.error(errMsg(err)); }
     setBusy(false);
@@ -51,16 +57,24 @@ export const LoginScreen = ({ onLogin }) => {
         <form onSubmit={submit} className="w-full max-w-lg space-y-5 fade-up" data-testid="login-form">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="font-display text-3xl">Aktivizimi i Licencës</h2>
-              <p className="text-sm text-muted mt-1">Fusni të dhënat dhe kodin e marrë nga administratori.</p>
+              <h2 className="font-display text-3xl">{mode === "hyr" ? "Hyni në llogari" : "Aktivizimi i Licencës"}</h2>
+              <p className="text-sm text-muted mt-1">{mode === "hyr" ? "Fusni email-in dhe kodin e licencës suaj aktive." : "Fusni të dhënat dhe kodin e marrë nga administratori."}</p>
             </div>
             <button type="button" onClick={() => setAdmin(true)} className="btn-ghost text-xs" data-testid="open-admin-btn">Panel Admin</button>
           </div>
+          <div className="grid grid-cols-2 p-1 rounded-full bg-ink/[0.06] text-sm font-semibold">
+            {[["hyr", "Kam licencë aktive"], ["aktivizo", "Aktivizo licencë të re"]].map(([k, t]) => (
+              <button type="button" key={k} onClick={() => setMode(k)} className={`py-2 rounded-full transition-colors ${mode === k ? "bg-white shadow-sm" : "text-muted"}`} data-testid={`mode-${k}-btn`}>{t}</button>
+            ))}
+          </div>
+          {mode === "aktivizo" && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Emri"><input className="inp" value={f.emri} onChange={set("emri")} data-testid="reg-emri" /></Field>
             <Field label="Mbiemri"><input className="inp" value={f.mbiemri} onChange={set("mbiemri")} data-testid="reg-mbiemri" /></Field>
           </div>
+          )}
           <Field label="Email"><input type="email" className="inp" value={f.email} onChange={set("email")} data-testid="reg-email" /></Field>
+          {mode === "aktivizo" && <>
           <Field label="Paketa e licencës">
             <select className="inp" value={f.n} onChange={set("n")} data-testid="reg-paketa">
               {[1, 2, 3].map((n) => <option key={n} value={n}>Licencë për {n} lëndë</option>)}
@@ -75,8 +89,9 @@ export const LoginScreen = ({ onLogin }) => {
               </Field>
             ))}
           </div>
+          </>}
           <Field label="Kodi i licencës"><input className="inp font-mono uppercase" placeholder="ASCAP-XXXXXX-0000" value={f.kodi} onChange={set("kodi")} data-testid="reg-kodi" /></Field>
-          <button disabled={busy} className="btn-primary w-full" data-testid="activate-btn">{busy ? "Duke verifikuar..." : "Aktivizo dhe Hyr"}</button>
+          <button disabled={busy} className="btn-primary w-full" data-testid="activate-btn">{busy ? "Duke verifikuar..." : mode === "hyr" ? "Hyr" : "Aktivizo dhe Hyr"}</button>
         </form>
       </main>
       {admin && <AdminModal onClose={() => setAdmin(false)} />}
