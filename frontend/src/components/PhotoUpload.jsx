@@ -1,16 +1,19 @@
 import { useRef } from "react";
 import { toast } from "sonner";
-import { Camera, X } from "lucide-react";
+import { Camera, ImagePlus, X } from "lucide-react";
 import { resizeImage } from "../lib/api";
 
 export const PhotoUpload = ({ images, setImages }) => {
   const ref = useRef();
+  const camRef = useRef();
   const add = async (e) => {
-    const files = Array.from(e.target.files || []).filter((f) => /image\/(jpeg|png|webp)/.test(f.type));
+    const files = Array.from(e.target.files || []).filter((f) => /image\/(jpeg|png|webp|heic|heif)/.test(f.type) || !f.type);
     if (files.length < (e.target.files || []).length) toast.error("Lejohen vetëm foto JPG, PNG ose WEBP.");
-    const out = await Promise.all(files.map((f) => resizeImage(f)));
-    setImages([...images, ...out].slice(0, 6));
     e.target.value = "";
+    try {
+      const out = await Promise.all(files.map((f) => resizeImage(f)));
+      setImages((prev) => [...prev, ...out].slice(0, 6));
+    } catch (err) { toast.error(err.message); }
   };
   return (
     <div>
@@ -24,12 +27,18 @@ export const PhotoUpload = ({ images, setImages }) => {
           </div>
         ))}
         {images.length < 6 && (
-          <button type="button" onClick={() => ref.current.click()} className="w-24 h-28 rounded-lg border-2 border-dashed border-ink/25 hover:border-accent hover:bg-accent/5 flex flex-col items-center justify-center gap-1 text-xs text-muted transition-colors" data-testid="photo-add-btn">
-            <Camera size={20} /> Shto foto
-          </button>
+          <>
+            <button type="button" onClick={() => camRef.current.click()} className="w-24 h-28 rounded-lg border-2 border-dashed border-ink/25 hover:border-accent hover:bg-accent/5 flex flex-col items-center justify-center gap-1 text-xs text-muted transition-colors" data-testid="photo-camera-btn">
+              <Camera size={20} /> Bëj foto
+            </button>
+            <button type="button" onClick={() => ref.current.click()} className="w-24 h-28 rounded-lg border-2 border-dashed border-ink/25 hover:border-accent hover:bg-accent/5 flex flex-col items-center justify-center gap-1 text-xs text-muted transition-colors" data-testid="photo-add-btn">
+              <ImagePlus size={20} /> Nga galeria
+            </button>
+          </>
         )}
       </div>
       <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={add} data-testid="photo-input" />
+      <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={add} data-testid="camera-input" />
     </div>
   );
 };
