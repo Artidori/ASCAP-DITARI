@@ -43,6 +43,14 @@ export const Generator = ({ user, onLogout }) => {
         </div>
       </header>
 
+      {(() => {
+        const dite = Math.ceil((new Date(user.skadon) - new Date()) / 86400000);
+        return dite >= 0 && dite <= 14 && (
+          <div className="bg-accent/[0.07] border-b border-accent/20 px-6 sm:px-12 py-3 text-sm text-accent-dark font-semibold" data-testid="expiry-warning">
+            Licenca juaj skadon pas {dite} {dite === 1 ? "dite" : "ditësh"} (15.06). Kontaktoni administratorin për rinovim për vitin e ri shkollor.
+          </div>
+        );
+      })()}
       <main className="max-w-5xl mx-auto px-6 sm:px-12 py-12 grid lg:grid-cols-[1fr_300px] gap-12">
         <section className="space-y-8 fade-up">
           <div className="flex justify-between items-end">
