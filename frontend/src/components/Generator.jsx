@@ -5,6 +5,7 @@ import { KLASAT, licApi, errMsg } from "../lib/api";
 import { PhotoUpload } from "./PhotoUpload";
 import { DitarModal } from "./DitarModal";
 import { ArchiveModal } from "./ArchiveModal";
+import { InstallButton } from "./InstallButton";
 
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
 const blank = (lenda) => ({ lenda, klasa: "Klasa 5", data: today(), tema: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "" });
@@ -35,7 +36,8 @@ export const Generator = ({ user, onLogout }) => {
       <header className="flex flex-wrap gap-3 justify-between items-center px-6 sm:px-12 py-5 border-b border-ink/10">
         <div className="font-display text-xl">ASCAP<span className="text-accent">.</span>Ditari</div>
         <div className="flex items-center gap-2 text-sm">
-          <span className="hidden sm:inline text-muted mr-2" data-testid="user-info"><b className="text-ink">{user.emri} {user.mbiemri}</b> · {user.lendet.join(" & ")}</span>
+          <span className="hidden sm:inline text-muted mr-2" data-testid="user-info"><b className="text-ink">{user.emri} {user.mbiemri}</b> · {user.lendet.join(" & ")} · <span data-testid="license-expiry">Skadon: {user.skadon?.slice(0, 10).split("-").reverse().join(".")}</span></span>
+          <InstallButton />
           <button onClick={() => setArchive(true)} className="btn-ghost" data-testid="open-archive-btn"><Archive size={16} /> Arkiva</button>
           <button onClick={onLogout} className="btn-ghost" data-testid="logout-btn"><LogOut size={16} /> Dil</button>
         </div>

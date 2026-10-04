@@ -33,6 +33,22 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def viti_aktual() -> str:
+    n = datetime.now(timezone.utc)
+    y = n.year if (n.month, n.day) > (6, 15) else n.year - 1
+    return f"{y}-{y + 1}"
+
+
+def skadon_per(viti: str) -> str:
+    end = int(viti.split("-")[1])
+    return datetime(end, 6, 15, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+
+
+def check_expiry(lic: dict):
+    if lic.get("skadon") and datetime.fromisoformat(lic["skadon"]) < datetime.now(timezone.utc):
+        raise HTTPException(403, f"Licenca ka skaduar më 15.06.{lic['skadon'][:4]}. Kontaktoni administratorin për rinovim.")
+
+
 def require_admin(pw: Optional[str]):
     if pw != ADMIN_PASSWORD:
         raise HTTPException(401, "Fjalëkalimi i adminit është i pasaktë!")
@@ -44,6 +60,7 @@ async def require_license(code: Optional[str]):
         raise HTTPException(401, "Licenca nuk është aktive. Hyni përsëri.")
     if not lic.get("aktiv"):
         raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
+    check_expiry(lic)
     return lic
 
 
@@ -56,6 +73,8 @@ class License(BaseModel):
     mbiemri: str = ""
     email: str = ""
     lendet: List[str] = []
+    vitiShkollor: str = ""
+    skadon: str = ""
     krijuar: str = Field(default_factory=now_iso)
 
 
@@ -65,6 +84,7 @@ class AdminLogin(BaseModel):
 
 class NewLicense(BaseModel):
     numriLendeve: int
+    vitiShkollor: str = ""
 
 
 class Activate(BaseModel):
@@ -106,7 +126,11 @@ async def admin_create(body: NewLicense, x_admin_password: Optional[str] = Heade
     if body.numriLendeve not in (1, 2, 3):
         raise HTTPException(400, "Paketa duhet të jetë 1, 2 ose 3 lëndë")
     rnd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    lic = License(kodi=f"ASCAP-{rnd}-{random.randint(1000, 9999)}", numriLendeve=body.numriLendeve)
+    viti = body.vitiShkollor or viti_aktual()
+    if not re.fullmatch(r"(\d{4})-(\d{4})", viti) or int(viti[5:]) != int(viti[:4]) + 1:
+        raise HTTPException(400, "Viti shkollor duhet në formatin 2026-2027")
+    lic = License(kodi=f"ASCAP-{rnd}-{random.randint(1000, 9999)}", numriLendeve=body.numriLendeve,
+                  vitiShkollor=viti, skadon=skadon_per(viti))
     await db.licenses.insert_one(lic.model_dump())
     return lic.model_dump()
 
@@ -119,6 +143,24 @@ async def admin_toggle(kodi: str, x_admin_password: Optional[str] = Header(None)
         raise HTTPException(404, "Nuk u gjet")
     await db.licenses.update_one({"kodi": kodi}, {"$set": {"aktiv": not lic.get("aktiv", True)}})
     return {"ok": True}
+
+
+@api.patch("/admin/licenses/{kodi}/renew")
+async def admin_renew(kodi: str, x_admin_password: Optional[str] = Header(None)):
+    require_admin(x_admin_password)
+    lic = await db.licenses.find_one({"kodi": kodi})
+    if not lic:
+        raise HTTPException(404, "Nuk u gjet")
+    start = max(int((lic.get("vitiShkollor") or viti_aktual())[:4]) + 1, int(viti_aktual()[:4]))
+    viti = f"{start}-{start + 1}"
+    await db.licenses.update_one({"kodi": kodi}, {"$set": {"vitiShkollor": viti, "skadon": skadon_per(viti)}})
+    return {"ok": True, "vitiShkollor": viti}
+
+
+@api.get("/admin/school-years")
+async def school_years():
+    y = int(viti_aktual()[:4])
+    return [f"{y}-{y + 1}", f"{y + 1}-{y + 2}"]
 
 
 @api.patch("/admin/licenses/{kodi}/reset")
@@ -144,6 +186,7 @@ async def activate(body: Activate):
         raise HTTPException(404, "Kodi i licencës është i pasaktë ose nuk ekziston!")
     if not lic.get("aktiv"):
         raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
+    check_expiry(lic)
     if lic["numriLendeve"] != body.numriLendeve:
         raise HTTPException(400, f"Ky kod i përket paketës për {lic['numriLendeve']} lëndë, por keni zgjedhur {body.numriLendeve}!")
     if lic.get("aktivizuar") and lic.get("email", "").lower() != body.email.strip().lower():
@@ -280,6 +323,13 @@ app.add_middleware(
     allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"], allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def backfill_expiry():
+    viti = viti_aktual()
+    await db.licenses.update_many({"$or": [{"skadon": {"$exists": False}}, {"skadon": ""}]},
+                                  {"$set": {"vitiShkollor": viti, "skadon": skadon_per(viti)}})
 
 
 @app.on_event("shutdown")
