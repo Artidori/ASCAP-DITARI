@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { API, LENDET, errMsg } from "../lib/api";
+import { API, LENDET, errMsg, deviceInfo } from "../lib/api";
 import { AdminModal } from "./AdminModal";
 
 const Field = ({ label, children }) => (
@@ -28,9 +28,9 @@ export const LoginScreen = ({ onLogin }) => {
       const { data } = aktivizo
         ? await axios.post(`${API}/license/activate`, {
           kodi: f.kodi, emri: f.emri, mbiemri: f.mbiemri, email: f.email,
-          numriLendeve: Number(f.n), lendet: f.l.slice(0, Number(f.n)),
+          numriLendeve: Number(f.n), lendet: f.l.slice(0, Number(f.n)), ...deviceInfo(),
         })
-        : await axios.post(`${API}/license/login`, { kodi: f.kodi, email: f.email });
+        : await axios.post(`${API}/license/login`, { kodi: f.kodi, email: f.email, ...deviceInfo() });
       localStorage.setItem("ascap_kodi", data.kodi);
       localStorage.setItem("ascap_last_kodi", data.kodi);
       localStorage.setItem("ascap_email", data.email);
@@ -94,7 +94,7 @@ export const LoginScreen = ({ onLogin }) => {
           </>}
           <Field label="Kodi i licencës"><input className="inp font-mono uppercase" placeholder="ASCAP-XXXXXX-0000" value={f.kodi} onChange={set("kodi")} data-testid="reg-kodi" /></Field>
           <button disabled={busy} className="btn-primary w-full" data-testid="activate-btn">{busy ? "Duke verifikuar..." : mode === "hyr" ? "Hyr" : "Aktivizo dhe Hyr"}</button>
-          {mode === "hyr" && <p className="text-center text-sm font-semibold text-accent-dark" data-testid="wake-server-note">Mos harro të zgjosh serverin në fillim</p>}
+          {mode === "hyr" && <p className="text-center text-sm font-semibold text-accent-dark" data-testid="wake-server-note">Serveri fiket pas 30 minutash pa përdorim, Zgjoje para se te punosh!</p>}
         </form>
       </main>
       {admin && <AdminModal onClose={() => setAdmin(false)} />}

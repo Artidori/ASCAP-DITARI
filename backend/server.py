@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Header, HTTPException, Response
+from fastapi import FastAPI, APIRouter, Header, HTTPException, Response, Depends
 from docx_builder import build_docx
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -55,13 +55,26 @@ def require_admin(pw: Optional[str]):
         raise HTTPException(401, "Fjalëkalimi i adminit është i pasaktë!")
 
 
-async def require_license(code: Optional[str]):
-    lic = await db.licenses.find_one({"kodi": code or ""}, {"_id": 0})
+PAJISJE_TJETER = "Kjo licencë është e lidhur me një pajisje tjetër. Çdo licencë përdoret vetëm nga një mësues në një pajisje. Kontaktoni administratorin."
+
+
+async def bind_device(lic: dict, pajisja: Optional[str], emri: str = ""):
+    if not pajisja:
+        raise HTTPException(400, "Pajisja nuk u identifikua. Rifreskoni faqen.")
+    if lic.get("pajisja") and lic["pajisja"] != pajisja:
+        raise HTTPException(403, PAJISJE_TJETER)
+    if not lic.get("pajisja"):
+        await db.licenses.update_one({"kodi": lic["kodi"]}, {"$set": {"pajisja": pajisja, "pajisjaEmri": emri[:80]}})
+
+
+async def require_license(x_license: Optional[str] = Header(None), x_device: Optional[str] = Header(None)):
+    lic = await db.licenses.find_one({"kodi": x_license or ""}, {"_id": 0})
     if not lic or not lic.get("aktivizuar"):
         raise HTTPException(401, "Licenca nuk është aktive. Hyni përsëri.")
     if not lic.get("aktiv"):
         raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
     check_expiry(lic)
+    await bind_device(lic, x_device)
     return lic
 
 
@@ -95,6 +108,8 @@ class Activate(BaseModel):
     email: str
     numriLendeve: int
     lendet: List[str]
+    pajisja: str = ""
+    pajisjaEmri: str = ""
 
 
 class GenerateReq(BaseModel):
@@ -119,7 +134,11 @@ async def admin_login(body: AdminLogin):
 @api.get("/admin/licenses")
 async def admin_list(x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    return await db.licenses.find({}, {"_id": 0}).sort("krijuar", -1).to_list(2000)
+    lics = await db.licenses.find({}, {"_id": 0, "pajisja": 0}).sort("krijuar", -1).to_list(2000)
+    counts = {c["_id"]: c["n"] async for c in db.ditare.aggregate([{"$group": {"_id": "$kodi", "n": {"$sum": 1}}}])}
+    for lic in lics:
+        lic["ditare"] = counts.get(lic["kodi"], 0)
+    return lics
 
 
 @api.post("/admin/licenses")
@@ -165,10 +184,17 @@ async def school_years():
     return [f"{y}-{y + 1}", f"{y + 1}-{y + 2}"]
 
 
+@api.patch("/admin/licenses/{kodi}/device-reset")
+async def admin_device_reset(kodi: str, x_admin_password: Optional[str] = Header(None)):
+    require_admin(x_admin_password)
+    await db.licenses.update_one({"kodi": kodi}, {"$set": {"pajisja": "", "pajisjaEmri": ""}})
+    return {"ok": True}
+
+
 @api.patch("/admin/licenses/{kodi}/reset")
 async def admin_reset(kodi: str, x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    await db.licenses.update_one({"kodi": kodi}, {"$set": {"aktivizuar": False}})
+    await db.licenses.update_one({"kodi": kodi}, {"$set": {"aktivizuar": False, "pajisja": "", "pajisjaEmri": ""}})
     return {"ok": True}
 
 
@@ -197,6 +223,7 @@ async def activate(body: Activate):
     lendet = FILLORE if body.numriLendeve == 0 else list(dict.fromkeys(body.lendet))[:body.numriLendeve]
     if body.numriLendeve and len(lendet) != body.numriLendeve:
         raise HTTPException(400, "Zgjidhni lëndë të ndryshme!")
+    await bind_device(lic, body.pajisja, body.pajisjaEmri)
     upd = {"emri": body.emri.strip(), "mbiemri": body.mbiemri.strip(), "email": body.email.strip(),
            "lendet": lendet, "aktivizuar": True}
     await db.licenses.update_one({"kodi": kodi}, {"$set": upd})
@@ -206,6 +233,8 @@ async def activate(body: Activate):
 class LicLogin(BaseModel):
     kodi: str
     email: str
+    pajisja: str = ""
+    pajisjaEmri: str = ""
 
 
 @api.post("/license/login")
@@ -216,12 +245,13 @@ async def lic_login(body: LicLogin):
     if not lic.get("aktiv"):
         raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
     check_expiry(lic)
+    await bind_device(lic, body.pajisja, body.pajisjaEmri)
     return lic
 
 
 @api.get("/license/me")
-async def me(x_license: Optional[str] = Header(None)):
-    return await require_license(x_license)
+async def me(lic: dict = Depends(require_license)):
+    return lic
 
 
 # ---------- Ditar ----------
@@ -282,8 +312,7 @@ def parse_json(text: str) -> dict:
 
 
 @api.post("/ditar/generate")
-async def generate(body: GenerateReq, x_license: Optional[str] = Header(None)):
-    lic = await require_license(x_license)
+async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
     if body.lenda not in lic["lendet"]:
         raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
     if lic["numriLendeve"] == 0 and body.klasa not in KLASAT_FILLORE:
@@ -339,8 +368,7 @@ class SaveHtml(BaseModel):
 
 
 @api.put("/ditar/{did}")
-async def save_html(did: str, body: SaveHtml, x_license: Optional[str] = Header(None)):
-    lic = await require_license(x_license)
+async def save_html(did: str, body: SaveHtml, lic: dict = Depends(require_license)):
     await db.ditare.update_one({"id": did, "kodi": lic["kodi"]}, {"$set": {"html": body.html}})
     return {"ok": True}
 
@@ -351,8 +379,7 @@ class DocxReq(BaseModel):
 
 
 @api.post("/ditar/{did}/docx")
-async def ditar_docx(did: str, body: DocxReq, x_license: Optional[str] = Header(None)):
-    lic = await require_license(x_license)
+async def ditar_docx(did: str, body: DocxReq, lic: dict = Depends(require_license)):
     d = await db.ditare.find_one({"id": did, "kodi": lic["kodi"]}, {"_id": 0})
     if not d:
         raise HTTPException(404, "Ditari nuk u gjet")
@@ -362,8 +389,7 @@ async def ditar_docx(did: str, body: DocxReq, x_license: Optional[str] = Header(
 
 
 @api.post("/ditar/{did}/share")
-async def ditar_share(did: str, body: DocxReq, x_license: Optional[str] = Header(None)):
-    lic = await require_license(x_license)
+async def ditar_share(did: str, body: DocxReq, lic: dict = Depends(require_license)):
     d = await db.ditare.find_one({"id": did, "kodi": lic["kodi"]}, {"_id": 0, "share_token": 1})
     if d is None:
         raise HTTPException(404, "Ditari nuk u gjet")
@@ -385,14 +411,12 @@ async def shared_docx(token: str):
 
 
 @api.get("/ditar")
-async def list_ditare(x_license: Optional[str] = Header(None)):
-    lic = await require_license(x_license)
+async def list_ditare(lic: dict = Depends(require_license)):
     return await db.ditare.find({"kodi": lic["kodi"]}, {"_id": 0}).sort("krijuar", -1).to_list(200)
 
 
 @api.delete("/ditar/{did}")
-async def delete_ditar(did: str, x_license: Optional[str] = Header(None)):
-    lic = await require_license(x_license)
+async def delete_ditar(did: str, lic: dict = Depends(require_license)):
     await db.ditare.delete_one({"id": did, "kodi": lic["kodi"]})
     return {"ok": True}
 

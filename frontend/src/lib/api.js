@@ -8,7 +8,13 @@ export const KURRIKULAT = ["Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle
 export const KLASAT = ["Parafillor", ...Array.from({ length: 12 }, (_, i) => `Klasa ${i + 1}`)];
 export const KLASAT_FILLORE = KLASAT.slice(1, 6);
 
-export const licApi = () => axios.create({ baseURL: API, headers: { "X-License": localStorage.getItem("ascap_kodi") || "" } });
+export const deviceId = () => {
+  let id = localStorage.getItem("ascap_device");
+  if (!id) { id = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`; localStorage.setItem("ascap_device", id); }
+  return id;
+};
+export const deviceInfo = () => ({ pajisja: deviceId(), pajisjaEmri: `${/Mobi|Android|iPhone/i.test(navigator.userAgent) ? "Telefon" : "Kompjuter"} · ${navigator.platform || ""}` });
+export const licApi = () => axios.create({ baseURL: API, headers: { "X-License": localStorage.getItem("ascap_kodi") || "", "X-Device": deviceId() } });
 export const adminApi = (pw) => axios.create({ baseURL: API, headers: { "X-Admin-Password": pw } });
 export const errMsg = (e) => e?.response?.data?.detail || e.message || "Gabim";
 

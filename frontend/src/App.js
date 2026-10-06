@@ -3,7 +3,8 @@ import "@/App.css";
 import { Toaster } from "./components/ui/sonner";
 import { LoginScreen } from "./components/LoginScreen";
 import { Generator } from "./components/Generator";
-import { licApi } from "./lib/api";
+import { licApi, errMsg } from "./lib/api";
+import { toast } from "sonner";
 import { Footer } from "./components/Footer";
 
 function App() {
@@ -12,7 +13,7 @@ function App() {
 
   useEffect(() => {
     if (!localStorage.getItem("ascap_kodi")) return setReady(true);
-    licApi().get("/license/me").then((r) => setUser(r.data)).catch(() => localStorage.removeItem("ascap_kodi")).finally(() => setReady(true));
+    licApi().get("/license/me").then((r) => setUser(r.data)).catch((e) => { localStorage.removeItem("ascap_kodi"); toast.error(errMsg(e)); }).finally(() => setReady(true));
   }, []);
 
   const logout = () => { localStorage.removeItem("ascap_kodi"); setUser(null); };
