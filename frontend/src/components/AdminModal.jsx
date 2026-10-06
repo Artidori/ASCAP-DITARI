@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { API, adminApi, errMsg } from "../lib/api";
+import { API, adminApi, errMsg, paketaEmri } from "../lib/api";
 import { X, Copy } from "lucide-react";
 
 const fmt = (iso) => iso ? iso.slice(0, 10).split("-").reverse().join(".") : "-";
@@ -46,7 +46,7 @@ export const AdminModal = ({ onClose }) => {
             <div className="flex flex-wrap gap-3 items-end p-5 rounded-xl bg-ink/[0.04] mb-6">
               <label><span className="lbl">Paketa</span>
                 <select className="inp" value={pak} onChange={(e) => setPak(e.target.value)} data-testid="admin-paketa-select">
-                  {[1, 2, 3].map((n) => <option key={n} value={n}>{n} lëndë</option>)}
+                  {[1, 2, 3, 0].map((n) => <option key={n} value={n}>{paketaEmri(n)}</option>)}
                 </select>
               </label>
               <label><span className="lbl">Viti shkollor</span>
@@ -64,7 +64,7 @@ export const AdminModal = ({ onClose }) => {
                 {list.map((m) => (
                   <tr key={m.kodi} className="border-b" data-testid={`license-row-${m.kodi}`}>
                     <td className="p-2">{m.aktivizuar ? <><b>{m.emri} {m.mbiemri}</b><br /><span className="text-xs text-muted">{m.email} · {m.lendet.join(", ")}</span></> : <span className="text-muted">E pa përdorur</span>}</td>
-                    <td>{m.numriLendeve} lëndë</td>
+                    <td>{paketaEmri(m.numriLendeve)}</td>
                     <td className="text-xs px-3 whitespace-nowrap">{m.vitiShkollor}<br /><span className={expired(m) ? "text-rose-700 font-bold" : "text-muted"}>{fmt(m.skadon)}{expired(m) && " · skaduar"}</span></td>
                     <td><button onClick={() => copy(m.kodi)} className="font-mono text-accent-dark font-semibold whitespace-nowrap">{m.kodi}</button></td>
                     <td><span className={`pill ${m.aktiv ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{m.aktiv ? "Aktive" : "E caktivizuar"}</span></td>

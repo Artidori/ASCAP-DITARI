@@ -125,8 +125,8 @@ async def admin_list(x_admin_password: Optional[str] = Header(None)):
 @api.post("/admin/licenses")
 async def admin_create(body: NewLicense, x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    if body.numriLendeve not in (1, 2, 3):
-        raise HTTPException(400, "Paketa duhet të jetë 1, 2 ose 3 lëndë")
+    if body.numriLendeve not in (0, 1, 2, 3):
+        raise HTTPException(400, "Paketa duhet të jetë 1, 2, 3 lëndë ose Fillore")
     rnd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     viti = body.vitiShkollor or viti_aktual()
     if not re.fullmatch(r"(\d{4})-(\d{4})", viti) or int(viti[5:]) != int(viti[:4]) + 1:
@@ -190,11 +190,12 @@ async def activate(body: Activate):
         raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
     check_expiry(lic)
     if lic["numriLendeve"] != body.numriLendeve:
-        raise HTTPException(400, f"Ky kod i përket paketës për {lic['numriLendeve']} lëndë, por keni zgjedhur {body.numriLendeve}!")
+        emer = lambda n: "Fillore" if n == 0 else f"për {n} lëndë"
+        raise HTTPException(400, f"Ky kod i përket paketës {emer(lic['numriLendeve'])}, por keni zgjedhur paketën {emer(body.numriLendeve)}!")
     if lic.get("aktivizuar") and lic.get("email", "").lower() != body.email.strip().lower():
         raise HTTPException(403, "Ky kod është aktivizuar tashmë nga një mësues tjetër!")
-    lendet = list(dict.fromkeys(body.lendet))[:body.numriLendeve]
-    if len(lendet) != body.numriLendeve:
+    lendet = FILLORE if body.numriLendeve == 0 else list(dict.fromkeys(body.lendet))[:body.numriLendeve]
+    if body.numriLendeve and len(lendet) != body.numriLendeve:
         raise HTTPException(400, "Zgjidhni lëndë të ndryshme!")
     upd = {"emri": body.emri.strip(), "mbiemri": body.mbiemri.strip(), "email": body.email.strip(),
            "lendet": lendet, "aktivizuar": True}
@@ -232,10 +233,15 @@ FUSHA = {
     "Kërcim": "Arte", "Teatër": "Arte", "Aftësim Teknologjik": "Teknologji dhe TIK",
     "Dituri Natyre": "Shkencat e natyrës", "Kurrikula në Bazë Shkolle": "Kurrikula në bazë shkolle",
     "Kurrikula me Zgjedhje": "Kurrikula me zgjedhje", "Letërsi": "Gjuhët dhe komunikimi", "Ekonomi": "Shoqëria dhe mjedisi",
+    "Gjuhë Angleze": "Gjuhët dhe komunikimi", "Edukim Fizik, Sporte dhe Shëndet": "Edukim fizik, sporte dhe shëndet",
+    "Edukim për Shoqërinë": "Shoqëria dhe mjedisi", "Aftësim Teknologjik Praktik": "Teknologji dhe TIK",
 }
 
+FILLORE = ["Gjuhë Shqipe", "Gjuhë Angleze", "Matematikë", "Dituri Natyre", "TIK", "Art Pamor", "Muzikë",
+           "Edukim Fizik, Sporte dhe Shëndet", "Edukim për Shoqërinë", "Aftësim Teknologjik Praktik", "Kurrikula me Zgjedhje"]
+KLASAT_FILLORE = [f"Klasa {i}" for i in range(1, 6)]
 KURRIKULAT = ("Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle")
-GJUHA = {"Anglisht": "ANGLISHT (English)", "Italisht": "ITALISHT (Italiano)"}
+GJUHA = {"Anglisht": "ANGLISHT (English)", "Gjuhë Angleze": "ANGLISHT (English)", "Italisht": "ITALISHT (Italiano)"}
 
 
 def shkalla(klasa: str) -> str:
@@ -280,6 +286,8 @@ async def generate(body: GenerateReq, x_license: Optional[str] = Header(None)):
     lic = await require_license(x_license)
     if body.lenda not in lic["lendet"]:
         raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
+    if lic["numriLendeve"] == 0 and body.klasa not in KLASAT_FILLORE:
+        raise HTTPException(403, "Paketa Fillore vlen vetëm për klasat 1-5.")
     if not body.images and not body.tema.strip():
         raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
     if len(body.images) > 6:

@@ -78,9 +78,11 @@ export const LoginScreen = ({ onLogin }) => {
           <Field label="Paketa e licencës">
             <select className="inp" value={f.n} onChange={set("n")} data-testid="reg-paketa">
               {[1, 2, 3].map((n) => <option key={n} value={n}>Licencë për {n} lëndë</option>)}
+              <option value={0}>Paketa Fillore (klasat 1–5, 11 lëndë)</option>
             </select>
           </Field>
           <div className={`grid gap-3 grid-cols-${f.n}`} style={{ gridTemplateColumns: `repeat(${f.n},1fr)` }}>
+            {Number(f.n) === 0 && <p className="text-xs text-muted">Përfshin: Gjuhë shqipe, Gjuhë angleze, Matematikë, Dituri natyre, TIK, Art pamor, Muzikë, Edukim fizik, Edukim për shoqërinë, Aftësim teknologjik praktik, Kurrikula me zgjedhje.</p>}
             {Array.from({ length: Number(f.n) }).map((_, i) => (
               <Field key={i} label={`Lënda ${i + 1}`}>
                 <select className="inp" value={f.l[i]} onChange={setL(i)} data-testid={`reg-lenda-${i + 1}`}>

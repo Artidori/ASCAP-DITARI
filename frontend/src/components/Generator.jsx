@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Sparkles, Archive, LogOut, RotateCcw, Camera } from "lucide-react";
-import { KLASAT, KURRIKULAT, licApi, errMsg } from "../lib/api";
+import { KLASAT, KLASAT_FILLORE, KURRIKULAT, licApi, errMsg } from "../lib/api";
 import { PhotoUpload } from "./PhotoUpload";
 import { DitarModal } from "./DitarModal";
 import { ArchiveModal } from "./ArchiveModal";
 import { InstallButton } from "./InstallButton";
 
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
-const blank = (lenda) => ({ lenda, klasa: "Klasa 5", data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "" });
+const blank = (lenda, fillore) => ({ lenda, klasa: fillore ? "Klasa 1" : "Klasa 5", data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "" });
 
 export const Generator = ({ user, onLogout }) => {
-  const [f, setF] = useState(blank(user.lendet[0]));
+  const [f, setF] = useState(blank(user.lendet[0], user.numriLendeve === 0));
   const [images, setImages] = useState([]);
   const [meFoto, setMeFoto] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,14 +31,14 @@ export const Generator = ({ user, onLogout }) => {
     } catch (e) { toast.error(errMsg(e)); }
     setBusy(false);
   };
-  const reset = () => { setF(blank(f.lenda)); setImages([]); };
+  const reset = () => { setF(blank(f.lenda, user.numriLendeve === 0)); setImages([]); };
 
   return (
     <div className="min-h-screen">
       <header className="flex flex-wrap gap-3 justify-between items-center px-6 sm:px-12 py-5 border-b border-ink/10">
         <div className="font-display text-xl">ASCAP<span className="text-accent">.</span>Ditari</div>
         <div className="flex items-center gap-2 text-sm">
-          <span className="hidden sm:inline text-muted mr-2" data-testid="user-info"><b className="text-ink">{user.emri} {user.mbiemri}</b> · {user.lendet.join(" & ")} · <span data-testid="license-expiry">Skadon: {user.skadon?.slice(0, 10).split("-").reverse().join(".")}</span></span>
+          <span className="hidden sm:inline text-muted mr-2" data-testid="user-info"><b className="text-ink">{user.emri} {user.mbiemri}</b> · {user.numriLendeve === 0 ? "Paketa Fillore" : user.lendet.join(" & ")} · <span data-testid="license-expiry">Skadon: {user.skadon?.slice(0, 10).split("-").reverse().join(".")}</span></span>
           <InstallButton />
           <button onClick={() => setArchive(true)} className="btn-ghost" data-testid="open-archive-btn"><Archive size={16} /> Arkiva</button>
           <button onClick={onLogout} className="btn-ghost" data-testid="logout-btn"><LogOut size={16} /> Dil</button>
@@ -80,7 +80,7 @@ export const Generator = ({ user, onLogout }) => {
               </label>
             )}
             <label><span className="lbl">Klasa</span>
-              <select className="inp" value={f.klasa} onChange={set("klasa")} data-testid="klasa-select">{KLASAT.map((k) => <option key={k}>{k}</option>)}</select>
+              <select className="inp" value={f.klasa} onChange={set("klasa")} data-testid="klasa-select">{(user.numriLendeve === 0 ? KLASAT_FILLORE : KLASAT).map((k) => <option key={k}>{k}</option>)}</select>
             </label>
             <label><span className="lbl">Data</span><input type="date" className="inp cursor-pointer" value={f.data.split(".").reverse().join("-")} onChange={(e) => e.target.value && setF({ ...f, data: e.target.value.split("-").reverse().join(".") })} onClick={(e) => e.target.showPicker?.()} data-testid="data-input" /></label>
             <label><span className="lbl">Viti shkollor</span><input className="inp" value={f.vitiShkollor} onChange={set("vitiShkollor")} data-testid="viti-input" /></label>
