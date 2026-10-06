@@ -94,6 +94,7 @@ export const LoginScreen = ({ onLogin }) => {
           </>}
           <Field label="Kodi i licencës"><input className="inp font-mono uppercase" placeholder="ASCAP-XXXXXX-0000" value={f.kodi} onChange={set("kodi")} data-testid="reg-kodi" /></Field>
           <button disabled={busy} className="btn-primary w-full" data-testid="activate-btn">{busy ? "Duke verifikuar..." : mode === "hyr" ? "Hyr" : "Aktivizo dhe Hyr"}</button>
+          {mode === "hyr" && <p className="text-center text-sm font-semibold text-accent-dark" data-testid="wake-server-note">Mos harro të zgjosh serverin në fillim</p>}
         </form>
       </main>
       {admin && <AdminModal onClose={() => setAdmin(false)} />}
