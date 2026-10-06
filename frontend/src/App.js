@@ -4,6 +4,7 @@ import { Toaster } from "./components/ui/sonner";
 import { LoginScreen } from "./components/LoginScreen";
 import { Generator } from "./components/Generator";
 import { licApi } from "./lib/api";
+import { Footer } from "./components/Footer";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -20,6 +21,7 @@ function App() {
     <div className="App">
       <Toaster position="top-center" richColors />
       {ready && (user ? <Generator user={user} onLogout={logout} /> : <LoginScreen onLogin={setUser} />)}
+      {ready && <Footer />}
     </div>
   );
 }
