@@ -55,16 +55,21 @@ def require_admin(pw: Optional[str]):
         raise HTTPException(401, "Fjalëkalimi i adminit është i pasaktë!")
 
 
-PAJISJE_TJETER = "Kjo licencë është e lidhur me një pajisje tjetër. Çdo licencë përdoret vetëm nga një mësues në një pajisje. Kontaktoni administratorin."
+def pajisje_msg(n: int) -> str:
+    sa = "një pajisje" if n == 1 else f"{n} pajisje"
+    return f"Kjo licencë është e lidhur me një pajisje tjetër. Licenca juaj lejon vetëm {sa}. Kontaktoni administratorin."
 
 
 async def bind_device(lic: dict, pajisja: Optional[str], emri: str = ""):
     if not pajisja:
         raise HTTPException(400, "Pajisja nuk u identifikua. Rifreskoni faqen.")
-    if lic.get("pajisja") and lic["pajisja"] != pajisja:
-        raise HTTPException(403, PAJISJE_TJETER)
-    if not lic.get("pajisja"):
-        await db.licenses.update_one({"kodi": lic["kodi"]}, {"$set": {"pajisja": pajisja, "pajisjaEmri": emri[:80]}})
+    ids = [p["id"] for p in lic.get("pajisjet", [])]
+    if pajisja in ids:
+        return
+    limit = lic.get("maxPajisje", 1)
+    if limit and len(ids) >= limit:
+        raise HTTPException(403, pajisje_msg(limit))
+    await db.licenses.update_one({"kodi": lic["kodi"]}, {"$push": {"pajisjet": {"id": pajisja, "emri": emri[:80] or "Pajisje"}}})
 
 
 async def require_license(x_license: Optional[str] = Header(None), x_device: Optional[str] = Header(None)):
@@ -89,6 +94,8 @@ class License(BaseModel):
     lendet: List[str] = []
     vitiShkollor: str = ""
     skadon: str = ""
+    maxPajisje: int = 1
+    pajisjet: list = []
     krijuar: str = Field(default_factory=now_iso)
 
 
@@ -98,6 +105,7 @@ class AdminLogin(BaseModel):
 
 class NewLicense(BaseModel):
     numriLendeve: int
+    maxPajisje: int = 1
     vitiShkollor: str = ""
 
 
@@ -134,10 +142,12 @@ async def admin_login(body: AdminLogin):
 @api.get("/admin/licenses")
 async def admin_list(x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    lics = await db.licenses.find({}, {"_id": 0, "pajisja": 0}).sort("krijuar", -1).to_list(2000)
+    lics = await db.licenses.find({}, {"_id": 0}).sort("krijuar", -1).to_list(2000)
     counts = {c["_id"]: c["n"] async for c in db.ditare.aggregate([{"$group": {"_id": "$kodi", "n": {"$sum": 1}}}])}
     for lic in lics:
         lic["ditare"] = counts.get(lic["kodi"], 0)
+        lic["pajisjet"] = [p["emri"] for p in lic.get("pajisjet", [])]
+        lic.setdefault("maxPajisje", 1)
     return lics
 
 
@@ -146,12 +156,14 @@ async def admin_create(body: NewLicense, x_admin_password: Optional[str] = Heade
     require_admin(x_admin_password)
     if body.numriLendeve not in (0, 1, 2, 3):
         raise HTTPException(400, "Paketa duhet të jetë 1, 2, 3 lëndë ose Fillore")
+    if body.maxPajisje not in (0, 1, 2):
+        raise HTTPException(400, "Pajisjet duhet të jenë 1, 2 ose pa limit")
     rnd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     viti = body.vitiShkollor or viti_aktual()
     if not re.fullmatch(r"(\d{4})-(\d{4})", viti) or int(viti[5:]) != int(viti[:4]) + 1:
         raise HTTPException(400, "Viti shkollor duhet në formatin 2026-2027")
     lic = License(kodi=f"ASCAP-{rnd}-{random.randint(1000, 9999)}", numriLendeve=body.numriLendeve,
-                  vitiShkollor=viti, skadon=skadon_per(viti))
+                  vitiShkollor=viti, skadon=skadon_per(viti), maxPajisje=body.maxPajisje)
     await db.licenses.insert_one(lic.model_dump())
     return lic.model_dump()
 
@@ -187,14 +199,33 @@ async def school_years():
 @api.patch("/admin/licenses/{kodi}/device-reset")
 async def admin_device_reset(kodi: str, x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    await db.licenses.update_one({"kodi": kodi}, {"$set": {"pajisja": "", "pajisjaEmri": ""}})
+    await db.licenses.update_one({"kodi": kodi}, {"$set": {"pajisjet": []}})
+    return {"ok": True}
+
+
+class MaxDevices(BaseModel):
+    maxPajisje: int
+
+
+@api.patch("/admin/licenses/{kodi}/max-devices")
+async def admin_max_devices(kodi: str, body: MaxDevices, x_admin_password: Optional[str] = Header(None)):
+    require_admin(x_admin_password)
+    if body.maxPajisje not in (0, 1, 2):
+        raise HTTPException(400, "Pajisjet duhet të jenë 1, 2 ose pa limit")
+    lic = await db.licenses.find_one({"kodi": kodi}, {"pajisjet": 1})
+    if not lic:
+        raise HTTPException(404, "Nuk u gjet")
+    upd = {"maxPajisje": body.maxPajisje}
+    if body.maxPajisje and len(lic.get("pajisjet", [])) > body.maxPajisje:
+        upd["pajisjet"] = lic["pajisjet"][:body.maxPajisje]
+    await db.licenses.update_one({"kodi": kodi}, {"$set": upd})
     return {"ok": True}
 
 
 @api.patch("/admin/licenses/{kodi}/reset")
 async def admin_reset(kodi: str, x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    await db.licenses.update_one({"kodi": kodi}, {"$set": {"aktivizuar": False, "pajisja": "", "pajisjaEmri": ""}})
+    await db.licenses.update_one({"kodi": kodi}, {"$set": {"aktivizuar": False, "pajisjet": []}})
     return {"ok": True}
 
 
@@ -434,6 +465,13 @@ async def backfill_expiry():
     viti = viti_aktual()
     await db.licenses.update_many({"$or": [{"skadon": {"$exists": False}}, {"skadon": ""}]},
                                   {"$set": {"vitiShkollor": viti, "skadon": skadon_per(viti)}})
+
+
+@app.on_event("startup")
+async def migrate_devices():
+    async for lic in db.licenses.find({"pajisja": {"$exists": True}}):
+        pj = [{"id": lic["pajisja"], "emri": lic.get("pajisjaEmri") or "Pajisje"}] if lic.get("pajisja") else []
+        await db.licenses.update_one({"_id": lic["_id"]}, {"$set": {"pajisjet": pj}, "$unset": {"pajisja": "", "pajisjaEmri": ""}})
 
 
 @app.on_event("shutdown")

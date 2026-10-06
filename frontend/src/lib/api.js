@@ -3,7 +3,7 @@ import axios from "axios";
 export const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export const LENDET = ["Gjuhë Shqipe", "Matematikë", "Anglisht", "Italisht", "TIK", "Fizikë", "Kimi", "Biologji", "Gjeografi", "Qytetari", "Edukim Fizik", "Histori", "Muzikë", "Art Pamor", "Dituri Natyre", "Kërcim", "Teatër", "Aftësim Teknologjik", "Letërsi", "Ekonomi", "Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle"];
-export const paketaEmri = (n) => (Number(n) === 0 ? "Paketa Fillore (kl. 1–5)" : `${n} lëndë`);
+export const paketaEmri = (n) => (Number(n) === 0 ? "Fillore (kl. 1–5)" : `${n} lëndë`);
 export const KURRIKULAT = ["Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle"];
 export const KLASAT = ["Parafillor", ...Array.from({ length: 12 }, (_, i) => `Klasa ${i + 1}`)];
 export const KLASAT_FILLORE = KLASAT.slice(1, 6);
