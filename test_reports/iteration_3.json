@@ -1,0 +1,21 @@
+{
+  "summary": "Verified device-lock + admin ditarë count + Paketa Fillore subject hiding + wake-server note. Backend: 30/30 pytest cases pass (added 6 TestDeviceLock cases + 1 TestAdminDitareCount; updated prior tests to send X-Device/pajisja). Covered: activate without pajisja->400, /license/me and /ditar list/generate with wrong X-Device->403 'pajisje tjetër', /license/login from other device->403, admin device-reset re-binds correctly, admin list exposes 'ditare' int field per row and does NOT leak raw 'pajisja' field. Frontend (Playwright, 0 AI generations, 2 browser contexts): (1) wake-server-note testid visible on 'hyr' tab with exact Albanian text, hidden on 'aktivizo' tab; (2) activation on context A succeeded, device id stored in localStorage.ascap_device, reload persists; (3) fresh context B login same email+code -> error toast with 'pajisje tjetër', login screen stays; (4) admin device-reset endpoint called -> context B login succeeds, context A reload is logged out (3 x 403 on /license/me) and returns to login form; (5) admin table renders Ditarë column header, ditare-count-{kodi} shows 3 for real license ASCAP-QKGAWN-1690, 'Pajisja: Kompjuter · Testi' label shown, device-reset-{kodi} button present on bound rows; (6) Paketa Fillore row shows only email (NO ' · subjects' concatenation) while 1-lëndë row still shows ' · Matematikë'. All 3 ephemeral test licenses created during the test were deleted. Real license ASCAP-QKGAWN-1690 untouched.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py bind_device uses pajisjaEmri[:80] truncation on first bind only; subsequent same-device logins do NOT refresh the device label even if browser string changes - acceptable but worth documenting.",
+    "admin_list projection drops 'pajisja' but keeps 'pajisjaEmri' - correct, prevents leaking the raw device UUID.",
+    "Login API returns 403 'pajisje tjetër' with same message in both /license/activate and /license/login - frontend toast surfaces it correctly.",
+    "LoginScreen hydration warning in dev remains (VE instrumentation inside <option> span) - harmless.",
+    "deviceId() uses crypto.randomUUID with fallback - good; stored under 'ascap_device' which survives reload (verified)."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py", "/app/test_reports/iteration_3.json", "/app/test_reports/pytest/pytest_results.xml"],
+  "success_rate": {"backend": "100% (30/30)", "frontend": "100% (6/6 scenarios)"},
+  "test_credentials": "Admin X-Admin-Password: artikleo. Existing teacher licenses in /app/memory/test_credentials.md unchanged.",
+  "seed_data_creation": "Test fixtures create ephemeral licenses within the pytest module (cleaned up in fixture teardown). UI tests created 3 licenses (ASCAP-2SM9SS-4405, ASCAP-GRL6DI-2172, ASCAP-IPJTAC-1860) - all DELETED. No AI generation calls made.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Device-lock is enforced via require_license dependency (bind_device) which calls out through X-Device header for every /api/ditar* and /api/license/me request; frontend licApi() axios instance already injects X-License + X-Device. If future tests need to bypass lock temporarily, call /admin/licenses/{kodi}/device-reset. pytest.ini forces xdist - run with `pytest backend/tests/backend_test.py -o addopts='' ...` because fixture is module-scoped. User still has low AI credits; keep /ditar/generate calls minimal."
+}
