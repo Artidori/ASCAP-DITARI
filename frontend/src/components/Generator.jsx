@@ -1,28 +1,30 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, Archive, LogOut, RotateCcw } from "lucide-react";
-import { KLASAT, licApi, errMsg } from "../lib/api";
+import { Sparkles, Archive, LogOut, RotateCcw, Camera } from "lucide-react";
+import { KLASAT, KURRIKULAT, licApi, errMsg } from "../lib/api";
 import { PhotoUpload } from "./PhotoUpload";
 import { DitarModal } from "./DitarModal";
 import { ArchiveModal } from "./ArchiveModal";
 import { InstallButton } from "./InstallButton";
 
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
-const blank = (lenda) => ({ lenda, klasa: "Klasa 5", data: today(), tema: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "" });
+const blank = (lenda) => ({ lenda, klasa: "Klasa 5", data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "" });
 
 export const Generator = ({ user, onLogout }) => {
   const [f, setF] = useState(blank(user.lendet[0]));
   const [images, setImages] = useState([]);
+  const [meFoto, setMeFoto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [ditar, setDitar] = useState(null);
   const [archive, setArchive] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
 
   const generate = async () => {
-    if (!images.length && !f.tema.trim()) return toast.error("Ngarkoni foto të librit ose shkruani temën.");
+    if (KURRIKULAT.includes(f.lenda) && !f.lendaKurrikules.trim()) return toast.error("Shkruani emrin e lëndës për kurrikulën.");
+    if (!(meFoto && images.length) && !f.tema.trim()) return toast.error("Ngarkoni foto të librit ose shkruani temën.");
     setBusy(true);
     try {
-      const { data } = await licApi().post("/ditar/generate", { ...f, images });
+      const { data } = await licApi().post("/ditar/generate", { ...f, images: meFoto ? images : [] });
       setDitar(data);
       setF((x) => ({ ...x, tema: data.tema }));
       toast.success("Ditari u gjenerua!");
@@ -61,12 +63,22 @@ export const Generator = ({ user, onLogout }) => {
             <button onClick={reset} className="btn-ghost text-xs" data-testid="reset-form-btn"><RotateCcw size={14} /> Ditar i ri</button>
           </div>
 
-          <PhotoUpload images={images} setImages={setImages} />
+          <div>
+            <button type="button" onClick={() => setMeFoto(!meFoto)} className={`btn-ghost text-xs border ${meFoto ? "border-accent text-accent-dark" : "border-ink/15"}`} data-testid="toggle-photos-btn">
+              <Camera size={14} /> {meFoto ? "Hiq fotot" : "Dua të shtoj foto"}
+            </button>
+            {meFoto && <div className="mt-4"><PhotoUpload images={images} setImages={setImages} /></div>}
+          </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <label><span className="lbl">Lënda</span>
               <select className="inp" value={f.lenda} onChange={set("lenda")} data-testid="lenda-select">{user.lendet.map((l) => <option key={l}>{l}</option>)}</select>
             </label>
+            {KURRIKULAT.includes(f.lenda) && (
+              <label><span className="lbl">Emri i lëndës ({f.lenda.toLowerCase()})</span>
+                <input className="inp" placeholder="P.sh. Edukim mjedisor" value={f.lendaKurrikules} onChange={set("lendaKurrikules")} data-testid="lenda-kurrikules-input" />
+              </label>
+            )}
             <label><span className="lbl">Klasa</span>
               <select className="inp" value={f.klasa} onChange={set("klasa")} data-testid="klasa-select">{KLASAT.map((k) => <option key={k}>{k}</option>)}</select>
             </label>

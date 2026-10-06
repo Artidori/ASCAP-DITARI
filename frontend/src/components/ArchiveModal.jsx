@@ -22,7 +22,7 @@ export const ArchiveModal = ({ onClose, onOpen }) => {
           {list?.map((d) => (
             <div key={d.id} className="flex justify-between items-center gap-3 p-4 rounded-xl bg-white border border-ink/10" data-testid={`archive-item-${d.id}`}>
               <div className="text-sm min-w-0">
-                <b>{d.lenda}</b> — <span className="truncate">{d.tema}</span>
+                <b>{d.lendaEmri || d.lenda}</b> — <span className="truncate">{d.tema}</span>
                 <div className="text-xs text-muted">{d.klasa} · {d.data}</div>
               </div>
               <div className="flex gap-2 shrink-0">

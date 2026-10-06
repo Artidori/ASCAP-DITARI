@@ -99,6 +99,7 @@ class Activate(BaseModel):
 
 class GenerateReq(BaseModel):
     lenda: str
+    lendaKurrikules: str = ""
     klasa: str
     data: str
     tema: str = ""
@@ -230,8 +231,10 @@ FUSHA = {
     "Gjeografi": "Shoqëria dhe mjedisi", "Qytetari": "Shoqëria dhe mjedisi", "TIK": "TIK dhe Teknologji",
     "Kërcim": "Arte", "Teatër": "Arte", "Aftësim Teknologjik": "Teknologji dhe TIK",
     "Dituri Natyre": "Shkencat e natyrës", "Kurrikula në Bazë Shkolle": "Kurrikula në bazë shkolle",
+    "Kurrikula me Zgjedhje": "Kurrikula me zgjedhje", "Letërsi": "Gjuhët dhe komunikimi", "Ekonomi": "Shoqëria dhe mjedisi",
 }
 
+KURRIKULAT = ("Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle")
 GJUHA = {"Anglisht": "ANGLISHT (English)", "Italisht": "ITALISHT (Italiano)"}
 
 
@@ -283,10 +286,15 @@ async def generate(body: GenerateReq, x_license: Optional[str] = Header(None)):
         raise HTTPException(400, "Maksimumi 6 foto për një ditar.")
 
     ak = f"Ka nxënës me AK (inicialet: {body.akInitials or 'pa inicialë'}) – përfshi masa konkrete mbështetëse." if body.kaAk else "Nuk ka nxënës me AK."
+    emri_lendes = body.lenda
+    if body.lenda in KURRIKULAT:
+        if not body.lendaKurrikules.strip():
+            raise HTTPException(400, "Shkruani emrin e lëndës për kurrikulën.")
+        emri_lendes = f"{body.lenda}: {body.lendaKurrikules.strip()}"
     gjuha = GJUHA.get(body.lenda)
     gj = (f"\nE RËNDËSISHME: Shkruaj TË GJITHË përmbajtjen e JSON-it (vlerat) VETËM në {gjuha}, jo në shqip. "
           "Çelësat e JSON-it mbeten siç janë.") if gjuha else ""
-    prompt = f"""Harto ditarin për: Lënda: {body.lenda}; {body.klasa}; Shkalla {shkalla(body.klasa)}.
+    prompt = f"""Harto ditarin për: Lënda: {emri_lendes}; {body.klasa}; Shkalla {shkalla(body.klasa)}.
 Tema e dhënë nga mësuesi: "{body.tema or '(nxirre nga fotot e librit)'}".
 {ak}
 {"Analizo me kujdes " + str(len(body.images)) + " fotot e faqeve të librit sipas radhës dhe shpërndaj informacionin e tyre (koncepte, shembuj, ushtrime, fjalë kyçe, faqe) në pjesët përkatëse të ditarit." if body.images else "Nuk ka foto; bazohu te tema."}
@@ -307,7 +315,7 @@ Kthe JSON me këtë strukturë saktësisht:
 
     ditar = {
         "id": str(uuid.uuid4()), "kodi": lic["kodi"],
-        "mesuesi": f"{lic['emri']} {lic['mbiemri']}", "lenda": body.lenda,
+        "mesuesi": f"{lic['emri']} {lic['mbiemri']}", "lenda": body.lenda, "lendaEmri": emri_lendes,
         "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"), "shkalla": shkalla(body.klasa),
         "klasa": body.klasa, "data": body.data, "vitiShkollor": body.vitiShkollor,
         "kaAk": body.kaAk, "akInitials": body.akInitials,

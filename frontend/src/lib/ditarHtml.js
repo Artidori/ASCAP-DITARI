@@ -23,7 +23,7 @@ export function buildDitarHtml(d) {
   const det = p.detyrat || [];
   const ref = p.refleksioni || [];
   const fusha = FUSHA_SHFAQ[g] || d.fusha;
-  const lenda = LENDA_SHFAQ[g]?.[d.lenda] || d.lenda;
+  const lenda = LENDA_SHFAQ[g]?.[d.lenda] || d.lendaEmri || d.lenda;
   const akLabel = d.kaAk ? (d.akInitials ? `${L.ak} (${esc(d.akInitials)}):` : `${L.ak}:`) : `${L.mbes}:`;
   const strip = (x) => esc(String(x).replace(/^(Niveli|Level|Livello|Detyr[ëe]|Task|Compito)[^:]{0,25}:\s*/i, ""));
   const center = "vertical-align:middle;text-align:center;font-weight:bold;";
