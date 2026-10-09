@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { API, adminApi, errMsg, paketaEmri } from "../lib/api";
+import { API, adminApi, errMsg, paketaEmri, eshteFikse } from "../lib/api";
 import { X, Copy } from "lucide-react";
 
 const PAJISJE = [[1, "1 pajisje"], [2, "2 pajisje"], [0, "Pa limit pajisjesh"]];
@@ -17,6 +17,8 @@ export const AdminModal = ({ onClose }) => {
   const [vitet, setVitet] = useState([]);
   const [viti, setViti] = useState("");
   const [maxP, setMaxP] = useState(1);
+  const [q, setQ] = useState("");
+  const shown = list.filter((m) => `${m.emri} ${m.mbiemri} ${m.email} ${m.kodi}`.toLowerCase().includes(q.trim().toLowerCase()));
   useEffect(() => { axios.get(`${API}/admin/school-years`).then((r) => { setVitet(r.data); setViti(r.data[0]); }); }, []);
 
   const load = async (p = pw) => setList((await adminApi(p).get("/admin/licenses")).data);
@@ -50,7 +52,7 @@ export const AdminModal = ({ onClose }) => {
             <div className="flex flex-wrap gap-3 items-end p-5 rounded-xl bg-ink/[0.04] mb-6">
               <label><span className="lbl">Paketa</span>
                 <select className="inp" value={pak} onChange={(e) => setPak(e.target.value)} data-testid="admin-paketa-select">
-                  {[1, 2, 3, 0].map((n) => <option key={n} value={n}>{paketaEmri(n)}</option>)}
+                  {[1, 2, 3, 0, 4, 5, 6].map((n) => <option key={n} value={n}>{paketaEmri(n)}</option>)}
                 </select>
               </label>
               <label><span className="lbl">Viti shkollor</span>
@@ -66,13 +68,14 @@ export const AdminModal = ({ onClose }) => {
               <button onClick={create} className="btn-primary" data-testid="admin-create-license-btn">Gjenero Kod Licence</button>
               {last && <button onClick={() => copy(last)} className="font-mono font-bold text-accent-dark flex items-center gap-2" data-testid="admin-last-code">{last} <Copy size={14} /></button>}
             </div>
+            <input className="inp mb-4 max-w-sm" placeholder="Kërko mësuesin me emër, email ose kod..." value={q} onChange={(e) => setQ(e.target.value)} data-testid="admin-search-input" />
             <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="admin-license-table">
               <thead><tr className="text-left text-xs uppercase text-muted border-b"><th className="p-2">Mësuesi</th><th>Paketa</th><th className="px-3">Skadon</th><th className="px-3">Ditarë</th><th>Kodi</th><th>Statusi</th><th></th></tr></thead>
               <tbody>
-                {list.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted">Nuk ka kode.</td></tr>}
-                {list.map((m) => (
+                {shown.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-muted">Nuk ka kode.</td></tr>}
+                {shown.map((m) => (
                   <tr key={m.kodi} className="border-b" data-testid={`license-row-${m.kodi}`}>
-                    <td className="p-2">{m.aktivizuar ? <><b>{m.emri} {m.mbiemri}</b><br /><span className="text-xs text-muted">{m.email}{m.numriLendeve !== 0 && ` · ${m.lendet.join(", ")}`}</span></> : <span className="text-muted">E pa përdorur</span>}
+                    <td className="p-2">{m.aktivizuar ? <><b>{m.emri} {m.mbiemri}</b><br /><span className="text-xs text-muted">{m.email}{!eshteFikse(m.numriLendeve) && ` · ${m.lendet.join(", ")}`}</span></> : <span className="text-muted">E pa përdorur</span>}
                       <div className="mt-1 text-[11px] text-muted">
                         <select className="border rounded px-1 py-0.5 bg-white" value={m.maxPajisje} onChange={(e) => setMax(m.kodi, e.target.value)} data-testid={`max-devices-${m.kodi}`}>
                           {PAJISJE.map(([v, t]) => <option key={v} value={v}>{t}</option>)}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { API, LENDET, errMsg, deviceInfo } from "../lib/api";
+import { API, LENDET, errMsg, deviceInfo, PAKETA_FIKSE, PAKETA_PERSHKRIM, eshteFikse } from "../lib/api";
 import { AdminModal } from "./AdminModal";
 
 const Field = ({ label, children }) => (
@@ -78,12 +78,12 @@ export const LoginScreen = ({ onLogin }) => {
           <Field label="Paketa e licencës">
             <select className="inp" value={f.n} onChange={set("n")} data-testid="reg-paketa">
               {[1, 2, 3].map((n) => <option key={n} value={n}>Licencë për {n} lëndë</option>)}
-              <option value={0}>Paketa Fillore (klasat 1–5, 11 lëndë)</option>
+              {Object.entries(PAKETA_FIKSE).map(([k, t]) => <option key={k} value={k}>Paketa {t}</option>)}
             </select>
           </Field>
           <div className={`grid gap-3 grid-cols-${f.n}`} style={{ gridTemplateColumns: `repeat(${f.n},1fr)` }}>
-            {Number(f.n) === 0 && <p className="text-xs text-muted">Përfshin: Gjuhë shqipe, Gjuhë angleze, Matematikë, Dituri natyre, TIK, Art pamor, Muzikë, Edukim fizik, Edukim për shoqërinë, Aftësim teknologjik praktik, Kurrikula me zgjedhje.</p>}
-            {Array.from({ length: Number(f.n) }).map((_, i) => (
+            {eshteFikse(f.n) && <p className="text-xs text-muted">{PAKETA_PERSHKRIM[f.n]}</p>}
+            {Array.from({ length: eshteFikse(f.n) ? 0 : Number(f.n) }).map((_, i) => (
               <Field key={i} label={`Lënda ${i + 1}`}>
                 <select className="inp" value={f.l[i]} onChange={setL(i)} data-testid={`reg-lenda-${i + 1}`}>
                   {LENDET.map((l) => <option key={l}>{l}</option>)}
@@ -94,7 +94,6 @@ export const LoginScreen = ({ onLogin }) => {
           </>}
           <Field label="Kodi i licencës"><input className="inp font-mono uppercase" placeholder="ASCAP-XXXXXX-0000" value={f.kodi} onChange={set("kodi")} data-testid="reg-kodi" /></Field>
           <button disabled={busy} className="btn-primary w-full" data-testid="activate-btn">{busy ? "Duke verifikuar..." : mode === "hyr" ? "Hyr" : "Aktivizo dhe Hyr"}</button>
-          {mode === "hyr" && <p className="text-center text-sm font-semibold text-accent-dark" data-testid="wake-server-note">Serveri fiket pas 30 minutash pa përdorim, Zgjoje para se te punosh!</p>}
         </form>
       </main>
       {admin && <AdminModal onClose={() => setAdmin(false)} />}

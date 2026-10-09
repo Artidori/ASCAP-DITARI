@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+from ditar_ai import (FUSHA, PAKETA, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
+                      prompt_standard, prompt_kolektive, prompt_ak)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -120,10 +122,21 @@ class Activate(BaseModel):
     pajisjaEmri: str = ""
 
 
-class GenerateReq(BaseModel):
+class KlasaItem(BaseModel):
+    klasa: str
     lenda: str
     lendaKurrikules: str = ""
-    klasa: str
+    tema: str = ""
+
+
+class GenerateReq(BaseModel):
+    lenda: str = ""
+    lendaKurrikules: str = ""
+    klasa: str = ""
+    klasat: List[KlasaItem] = []
+    smartlab: bool = False
+    llojiAk: str = ""
+    koha: str = ""
     data: str
     tema: str = ""
     vitiShkollor: str = ""
@@ -154,8 +167,8 @@ async def admin_list(x_admin_password: Optional[str] = Header(None)):
 @api.post("/admin/licenses")
 async def admin_create(body: NewLicense, x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    if body.numriLendeve not in (0, 1, 2, 3):
-        raise HTTPException(400, "Paketa duhet të jetë 1, 2, 3 lëndë ose Fillore")
+    if body.numriLendeve not in (1, 2, 3, *PAKETA):
+        raise HTTPException(400, "Paketë e pavlefshme")
     if body.maxPajisje not in (0, 1, 2):
         raise HTTPException(400, "Pajisjet duhet të jenë 1, 2 ose pa limit")
     rnd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -247,12 +260,13 @@ async def activate(body: Activate):
         raise HTTPException(403, "Kjo licencë është e caktivizuar nga administratori!")
     check_expiry(lic)
     if lic["numriLendeve"] != body.numriLendeve:
-        emer = lambda n: "Fillore" if n == 0 else f"për {n} lëndë"
+        emer = lambda n: PAKETA[n]["emri"] if n in PAKETA else f"për {n} lëndë"
         raise HTTPException(400, f"Ky kod i përket paketës {emer(lic['numriLendeve'])}, por keni zgjedhur paketën {emer(body.numriLendeve)}!")
     if lic.get("aktivizuar") and lic.get("email", "").lower() != body.email.strip().lower():
         raise HTTPException(403, "Ky kod është aktivizuar tashmë nga një mësues tjetër!")
-    lendet = FILLORE if body.numriLendeve == 0 else list(dict.fromkeys(body.lendet))[:body.numriLendeve]
-    if body.numriLendeve and len(lendet) != body.numriLendeve:
+    fikse = body.numriLendeve in PAKETA
+    lendet = PAKETA[body.numriLendeve]["lendet"] if fikse else list(dict.fromkeys(body.lendet))[:body.numriLendeve]
+    if not fikse and len(lendet) != body.numriLendeve:
         raise HTTPException(400, "Zgjidhni lëndë të ndryshme!")
     await bind_device(lic, body.pajisja, body.pajisjaEmri)
     upd = {"emri": body.emri.strip(), "mbiemri": body.mbiemri.strip(), "email": body.email.strip(),
@@ -286,110 +300,77 @@ async def me(lic: dict = Depends(require_license)):
 
 
 # ---------- Ditar ----------
-FUSHA = {
-    "Matematikë": "Matematikë", "Gjuhë Shqipe": "Gjuhët dhe komunikimi", "Anglisht": "Gjuhët dhe komunikimi",
-    "Italisht": "Gjuhët dhe komunikimi", "Muzikë": "Arte", "Art Pamor": "Arte",
-    "Edukim Fizik": "Edukim fizik, sporte dhe shëndet", "Histori": "Shoqëria dhe mjedisi",
-    "Gjeografi": "Shoqëria dhe mjedisi", "Qytetari": "Shoqëria dhe mjedisi", "TIK": "TIK dhe Teknologji",
-    "Kërcim": "Arte", "Teatër": "Arte", "Aftësim Teknologjik": "Teknologji dhe TIK",
-    "Dituri Natyre": "Shkencat e natyrës", "Kurrikula në Bazë Shkolle": "Kurrikula në bazë shkolle",
-    "Kurrikula me Zgjedhje": "Kurrikula me zgjedhje", "Letërsi": "Gjuhët dhe komunikimi", "Ekonomi": "Shoqëria dhe mjedisi",
-    "Gjuhë Angleze": "Gjuhët dhe komunikimi", "Edukim Fizik, Sporte dhe Shëndet": "Edukim fizik, sporte dhe shëndet",
-    "Edukim për Shoqërinë": "Shoqëria dhe mjedisi", "Aftësim Teknologjik Praktik": "Teknologji dhe TIK",
-}
-
-FILLORE = ["Gjuhë Shqipe", "Gjuhë Angleze", "Matematikë", "Dituri Natyre", "TIK", "Art Pamor", "Muzikë",
-           "Edukim Fizik, Sporte dhe Shëndet", "Edukim për Shoqërinë", "Aftësim Teknologjik Praktik", "Kurrikula me Zgjedhje"]
-KLASAT_FILLORE = [f"Klasa {i}" for i in range(1, 6)]
-KURRIKULAT = ("Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle")
-GJUHA = {"Anglisht": "ANGLISHT (English)", "Gjuhë Angleze": "ANGLISHT (English)", "Italisht": "ITALISHT (Italiano)"}
-
-
-def shkalla(klasa: str) -> str:
-    if "Parafillor" in klasa:
-        return "I"
-    m = re.search(r"\d+", klasa)
-    n = int(m.group()) if m else 5
-    return {1: "I", 2: "I", 3: "II", 4: "II", 5: "III", 6: "III", 7: "IV", 8: "IV", 9: "IV", 10: "V", 11: "V", 12: "VI"}.get(n, "III")
-
-
-SYSTEM = """Ti je ekspert i kurrikulës shqiptare (ASCAP) dhe harton ditarë mësimorë zyrtarë për mësuesit.
-Përgjigju VETËM me një objekt JSON të vlefshëm, pa tekst tjetër, pa markdown. Shkruaj në gjuhën shqipe standarde."""
-
-SCHEMA = """{
- "tema": "tema mësimore (nga libri nëse jepet foto)",
- "situata": "situatë konkrete e të nxënit, e lidhur me jetën e nxënësve (3-4 fjali)",
- "rezultatet": {"komunikimi": "...", "te_menduarit": "...", "personale": "..."},
- "fjalet_kyce": "5-7 fjalë kyçe nga përmbajtja, të ndara me presje",
- "burimet": "libri, faqet, mjete konkrete",
- "teknologjia": "...",
- "lidhja_fushat": "lëndë të tjera dhe si lidhen",
- "faza1": {"teknika": "...", "pershkrimi": "veprimtari konkrete për lidhjen me njohuritë e mëparshme"},
- "faza2": {"teknika": "...", "hapi1": "shpjegim konkret i koncepteve nga libri", "hapi2": "ushtrime/punë konkrete nga libri"},
- "faza3": {"teknika": "...", "pershkrimi": "..."},
- "vleresimi": ["Niveli 1 ...", "Niveli 2 ...", "Niveli 3 ..."],
- "feedback": "1-2 fjali konkrete feedback-u që mësuesi u jep nxënësve për këtë temë",
- "diferencimi": {"avancuar": "...", "ak": "..."},
- "detyrat": ["Detyrë bazë ...", "Detyrë mesatare ...", "Detyrë e avancuar ..."],
- "refleksioni": ["pyetje refleksioni 1", "pyetje refleksioni 2"]
-}"""
-
-
-def parse_json(text: str) -> dict:
-    t = text.strip()
-    t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t)
-    s, e = t.find("{"), t.rfind("}")
-    return json.loads(t[s:e + 1])
-
-
-@api.post("/ditar/generate")
-async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
-    if body.lenda not in lic["lendet"]:
-        raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
-    if lic["numriLendeve"] == 0 and body.klasa not in KLASAT_FILLORE:
-        raise HTTPException(403, "Paketa Fillore vlen vetëm për klasat 1-5.")
-    if not body.images and not body.tema.strip():
-        raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
-    if len(body.images) > 6:
-        raise HTTPException(400, "Maksimumi 6 foto për një ditar.")
-
-    ak = f"Ka nxënës me AK (inicialet: {body.akInitials or 'pa inicialë'}) – përfshi masa konkrete mbështetëse." if body.kaAk else "Nuk ka nxënës me AK."
-    emri_lendes = body.lenda
-    if body.lenda in KURRIKULAT:
-        if not body.lendaKurrikules.strip():
+def emri_lende(lenda: str, kurr: str) -> str:
+    if lenda in KURRIKULAT:
+        if not kurr.strip():
             raise HTTPException(400, "Shkruani emrin e lëndës për kurrikulën.")
-        emri_lendes = f"{body.lenda}: {body.lendaKurrikules.strip()}"
-    gjuha = GJUHA.get(body.lenda)
-    gj = (f"\nE RËNDËSISHME: Shkruaj TË GJITHË përmbajtjen e JSON-it (vlerat) VETËM në {gjuha}, jo në shqip. "
-          "Çelësat e JSON-it mbeten siç janë.") if gjuha else ""
-    prompt = f"""Harto ditarin për: Lënda: {emri_lendes}; {body.klasa}; Shkalla {shkalla(body.klasa)}.
-Tema e dhënë nga mësuesi: "{body.tema or '(nxirre nga fotot e librit)'}".
-{ak}
-{"Analizo me kujdes " + str(len(body.images)) + " fotot e faqeve të librit sipas radhës dhe shpërndaj informacionin e tyre (koncepte, shembuj, ushtrime, fjalë kyçe, faqe) në pjesët përkatëse të ditarit." if body.images else "Nuk ka foto; bazohu te tema."}
-Ora zgjat 45 min (10 + 25 + 10). Ji specifik për përmbajtjen, jo i përgjithshëm.
-Mos shkruaj parashtesa si "Niveli 1:" ose "Detyra 1:" në vlera.{gj}
-Kthe JSON me këtë strukturë saktësisht:
-{SCHEMA}"""
+        return f"{lenda}: {kurr.strip()}"
+    return lenda
 
+
+async def run_ai(prompt: str, images: List[str]) -> dict:
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=str(uuid.uuid4()), system_message=SYSTEM) \
         .with_model("gemini", "gemini-3-flash-preview")
-    imgs = [ImageContent(image_base64=i.split(",", 1)[-1]) for i in body.images]
+    imgs = [ImageContent(image_base64=i.split(",", 1)[-1]) for i in images]
     try:
         resp = await chat.send_message(UserMessage(text=prompt, file_contents=imgs or None))
-        content = parse_json(resp if isinstance(resp, str) else str(resp))
+        return parse_json(resp if isinstance(resp, str) else str(resp))
     except Exception as e:
         logger.exception("AI error")
         raise HTTPException(502, f"Analiza me AI dështoi. Provoni përsëri. ({str(e)[:120]})")
 
-    ditar = {
-        "id": str(uuid.uuid4()), "kodi": lic["kodi"],
-        "mesuesi": f"{lic['emri']} {lic['mbiemri']}", "lenda": body.lenda, "lendaEmri": emri_lendes,
-        "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"), "shkalla": shkalla(body.klasa),
-        "klasa": body.klasa, "data": body.data, "vitiShkollor": body.vitiShkollor,
-        "kaAk": body.kaAk, "akInitials": body.akInitials,
-        "tema": body.tema.strip() or content.get("tema", ""), "permbajtja": content,
-        "html": None, "krijuar": now_iso(),
-    }
+
+@api.post("/ditar/generate")
+async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
+    paketa = lic["numriLendeve"]
+    lejuara = PAKETA.get(paketa, {}).get("klasat")
+    if len(body.images) > 6:
+        raise HTTPException(400, "Maksimumi 6 foto për një ditar.")
+    ak = f"Ka nxënës me AK (inicialet: {body.akInitials or 'pa inicialë'}) – përfshi masa konkrete mbështetëse." if body.kaAk else "Nuk ka nxënës me AK."
+    base = {"id": str(uuid.uuid4()), "kodi": lic["kodi"], "mesuesi": f"{lic['emri']} {lic['mbiemri']}",
+            "data": body.data, "vitiShkollor": body.vitiShkollor, "kaAk": body.kaAk, "akInitials": body.akInitials,
+            "smartlab": body.smartlab, "html": None, "krijuar": now_iso()}
+
+    if paketa == 4:
+        if not 2 <= len(body.klasat) <= 3:
+            raise HTTPException(400, "Zgjidhni 2 ose 3 klasa.")
+        kl = sorted(body.klasat, key=lambda k: klasa_nr(k.klasa))
+        if len({k.klasa for k in kl}) != len(kl):
+            raise HTTPException(400, "Zgjidhni klasa të ndryshme.")
+        items = []
+        for k in kl:
+            if k.lenda not in lic["lendet"] or k.klasa not in lejuara:
+                raise HTTPException(403, "Lënda ose klasa nuk përfshihet në paketën Klasa Kolektive.")
+            if not body.images and not k.tema.strip():
+                raise HTTPException(400, f"Shkruani temën për {k.klasa} ose ngarkoni foto.")
+            items.append({"klasa": k.klasa, "lenda": k.lenda, "emri": emri_lende(k.lenda, k.lendaKurrikules), "tema": k.tema.strip()})
+        content = await run_ai(prompt_kolektive(items, ak, len(body.images), body.smartlab), body.images)
+        for i, k in enumerate(items):
+            k["tema"] = k["tema"] or ((content.get("klasat") or [{}] * 3)[i] or {}).get("tema", "")
+        ditar = {**base, "lloji": "kolektive", "klasatDitar": items,
+                 "lenda": " / ".join(dict.fromkeys(k["lenda"] for k in items)),
+                 "lendaEmri": " / ".join(dict.fromkeys(k["emri"] for k in items)),
+                 "fusha": " / ".join(dict.fromkeys(FUSHA.get(k["lenda"], "Shkencat e natyrës") for k in items)),
+                 "shkalla": " dhe ".join(dict.fromkeys(shkalla(k["klasa"]) for k in items)),
+                 "klasa": "Klasa " + "-".join(ROMAKE[klasa_nr(k["klasa"])] for k in items),
+                 "tema": " | ".join(k["tema"] for k in items), "permbajtja": content}
+    else:
+        if body.lenda not in lic["lendet"]:
+            raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
+        if lejuara and body.klasa not in lejuara:
+            raise HTTPException(403, f"Paketa {PAKETA[paketa]['emri']} nuk vlen për {body.klasa}.")
+        if not body.images and not body.tema.strip():
+            raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
+        emri = emri_lende(body.lenda, body.lendaKurrikules)
+        if paketa == 6:
+            prompt = prompt_ak(emri, body.klasa, body.tema, body.llojiAk, body.koha, len(body.images), body.smartlab)
+        else:
+            prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, len(body.images), body.smartlab, paketa == 5)
+        content = await run_ai(prompt, body.images)
+        ditar = {**base, "lloji": {6: "ak", 5: "parashkollor"}.get(paketa, "standard"),
+                 "lenda": body.lenda, "lendaEmri": emri, "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"),
+                 "shkalla": shkalla(body.klasa), "klasa": body.klasa, "llojiAk": body.llojiAk, "koha": body.koha,
+                 "tema": body.tema.strip() or content.get("tema", ""), "permbajtja": content}
     await db.ditare.insert_one({**ditar})
     return ditar
 
@@ -465,6 +446,12 @@ async def backfill_expiry():
     viti = viti_aktual()
     await db.licenses.update_many({"$or": [{"skadon": {"$exists": False}}, {"skadon": ""}]},
                                   {"$set": {"vitiShkollor": viti, "skadon": skadon_per(viti)}})
+
+
+@app.on_event("startup")
+async def sync_paketa_lendet():
+    for n, p in PAKETA.items():
+        await db.licenses.update_many({"numriLendeve": n, "aktivizuar": True}, {"$set": {"lendet": p["lendet"]}})
 
 
 @app.on_event("startup")

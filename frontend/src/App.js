@@ -6,6 +6,7 @@ import { Generator } from "./components/Generator";
 import { licApi, errMsg } from "./lib/api";
 import { toast } from "sonner";
 import { Footer } from "./components/Footer";
+import { WhatsAppButton } from "./components/WhatsAppButton";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -23,6 +24,7 @@ function App() {
       <Toaster position="top-center" richColors />
       {ready && (user ? <Generator user={user} onLogout={logout} /> : <LoginScreen onLogin={setUser} />)}
       {ready && <Footer />}
+      <WhatsAppButton />
     </div>
   );
 }

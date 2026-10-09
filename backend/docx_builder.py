@@ -80,7 +80,8 @@ def build_docx(html: str, font_size: int, header_text: str) -> bytes:
 
     soup = BeautifulSoup(html, "html.parser")
     rows = soup.find_all("tr")
-    table = doc.add_table(rows=len(rows), cols=5)
+    cols = max(sum(int(td.get("colspan", 1) or 1) for td in tr.find_all("td", recursive=False)) for tr in rows)
+    table = doc.add_table(rows=len(rows), cols=cols)
     table.style = "Table Grid"
     for r_idx, tr in enumerate(rows):
         col = 0
@@ -88,7 +89,7 @@ def build_docx(html: str, font_size: int, header_text: str) -> bytes:
             span = int(td.get("colspan", 1) or 1)
             cell = table.cell(r_idx, col)
             if span > 1:
-                cell = cell.merge(table.cell(r_idx, min(col + span - 1, 4)))
+                cell = cell.merge(table.cell(r_idx, min(col + span - 1, cols - 1)))
             style = (td.get("style") or "").replace(" ", "").lower()
             if "background-color:#f2f2f2" in style:
                 _shade(cell, "F2F2F2")
