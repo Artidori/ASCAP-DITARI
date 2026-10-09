@@ -64,7 +64,8 @@ class TestAdmin:
         assert isinstance(r.json(), list)
 
     def test_create_invalid_package(self, admin_headers):
-        r = requests.post(f"{API}/admin/licenses", json={"numriLendeve": 5}, headers=admin_headers, timeout=10)
+        # 5 is Parashkollor (valid). Use 7 as invalid.
+        r = requests.post(f"{API}/admin/licenses", json={"numriLendeve": 7}, headers=admin_headers, timeout=10)
         assert r.status_code == 400
 
 
@@ -278,6 +279,118 @@ class TestLicenseLogin:
             "pajisja": DEVICE_A,
         }, timeout=10)
         assert r.status_code == 200
+
+
+# ---------- Fixed-package test licenses (pre-seeded, device-bound to devT) ----------
+KEY_KOLEKTIVE = "ASCAP-FLQBUF-8451"
+KEY_PARASHKOLLOR = "ASCAP-2WMCF1-3078"
+KEY_AK = "ASCAP-GH5XAM-5179"
+DEV_T = "devT"
+
+
+class TestFixedPackages:
+    def test_kolektive_license_subjects_include_kercim_frengjisht(self):
+        r = requests.get(f"{API}/license/me",
+                         headers={"X-License": KEY_KOLEKTIVE, "X-Device": DEV_T}, timeout=10)
+        assert r.status_code == 200
+        lendet = r.json()["lendet"]
+        for subj in ["Kërcim", "Teatër", "Frengjisht"]:
+            assert subj in lendet, f"{subj} missing from Kolektive lendet"
+
+    def test_parashkollor_license_subjects(self):
+        r = requests.get(f"{API}/license/me",
+                         headers={"X-License": KEY_PARASHKOLLOR, "X-Device": DEV_T}, timeout=10)
+        assert r.status_code == 200
+        lendet = r.json()["lendet"]
+        for subj in ["Teatër", "Kërcim", "Muzikë"]:
+            assert subj in lendet
+        assert len(lendet) == 9
+
+    def test_parashkollor_wrong_class_rejected(self):
+        """Validation-only (no AI call): klasa 'Klasa 3' not allowed for Parashkollor."""
+        r = requests.post(f"{API}/ditar/generate", json={
+            "lenda": "Matematikë", "klasa": "Klasa 3", "data": "01.01.2026", "tema": "test",
+        }, headers={"X-License": KEY_PARASHKOLLOR, "X-Device": DEV_T}, timeout=15)
+        assert r.status_code == 403, r.text
+        assert "Parashkollor" in r.json()["detail"]
+
+    def test_kolektive_one_class_rejected(self):
+        r = requests.post(f"{API}/ditar/generate", json={
+            "data": "01.01.2026",
+            "klasat": [{"klasa": "Klasa 1", "lenda": "Matematikë", "tema": "x"}],
+        }, headers={"X-License": KEY_KOLEKTIVE, "X-Device": DEV_T}, timeout=15)
+        assert r.status_code == 400
+        assert "2 ose 3" in r.json()["detail"]
+
+    def test_kolektive_four_classes_rejected(self):
+        r = requests.post(f"{API}/ditar/generate", json={
+            "data": "01.01.2026",
+            "klasat": [
+                {"klasa": "Klasa 1", "lenda": "Matematikë", "tema": "x"},
+                {"klasa": "Klasa 2", "lenda": "Matematikë", "tema": "x"},
+                {"klasa": "Klasa 3", "lenda": "Matematikë", "tema": "x"},
+                {"klasa": "Klasa 4", "lenda": "Matematikë", "tema": "x"},
+            ],
+        }, headers={"X-License": KEY_KOLEKTIVE, "X-Device": DEV_T}, timeout=15)
+        assert r.status_code == 400
+        assert "2 ose 3" in r.json()["detail"]
+
+    def test_kolektive_duplicate_classes_rejected(self):
+        r = requests.post(f"{API}/ditar/generate", json={
+            "data": "01.01.2026",
+            "klasat": [
+                {"klasa": "Klasa 1", "lenda": "Matematikë", "tema": "x"},
+                {"klasa": "Klasa 1", "lenda": "Gjuhë Shqipe", "tema": "y"},
+            ],
+        }, headers={"X-License": KEY_KOLEKTIVE, "X-Device": DEV_T}, timeout=15)
+        assert r.status_code == 400
+        assert "të ndryshme" in r.json()["detail"]
+
+    def test_ak_license_subjects_broad(self):
+        r = requests.get(f"{API}/license/me",
+                         headers={"X-License": KEY_AK, "X-Device": DEV_T}, timeout=10)
+        assert r.status_code == 200
+        lendet = r.json()["lendet"]
+        for subj in ["Frengjisht", "Kërcim", "Matematikë"]:
+            assert subj in lendet
+
+    def test_each_test_license_has_one_diary(self):
+        for k in (KEY_KOLEKTIVE, KEY_PARASHKOLLOR, KEY_AK):
+            r = requests.get(f"{API}/ditar",
+                             headers={"X-License": k, "X-Device": DEV_T}, timeout=10)
+            assert r.status_code == 200
+            assert len(r.json()) >= 1, f"{k} has no diary"
+
+    def test_docx_download_for_kolektive_diary(self):
+        """Download the pre-seeded kolektive diary as .docx (no AI cost)."""
+        lst = requests.get(f"{API}/ditar",
+                           headers={"X-License": KEY_KOLEKTIVE, "X-Device": DEV_T}, timeout=10).json()
+        did = lst[0]["id"]
+        r = requests.post(f"{API}/ditar/{did}/docx",
+                          json={"html": "<table><tr><td>test</td></tr></table>", "fontSize": 12},
+                          headers={"X-License": KEY_KOLEKTIVE, "X-Device": DEV_T}, timeout=20)
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assert r.content[:2] == b"PK"  # docx is a zip
+
+
+# ---------- Standard-package activation subject list (via a fresh license) ----------
+class TestStandardActivationFrengjisht:
+    def test_activate_with_frengjisht_subject(self, admin_headers):
+        c = requests.post(f"{API}/admin/licenses", json={"numriLendeve": 1},
+                          headers=admin_headers, timeout=10).json()
+        try:
+            r = requests.post(f"{API}/license/activate", json={
+                "kodi": c["kodi"], "emri": "Fr", "mbiemri": "Test",
+                "email": "TEST_frengjisht@ascap.al", "numriLendeve": 1,
+                "lendet": ["Frengjisht"],
+                "pajisja": "test-dev-fr", "pajisjaEmri": "Kompjuter · Test",
+            }, timeout=10)
+            assert r.status_code == 200, r.text
+            assert r.json()["lendet"] == ["Frengjisht"]
+        finally:
+            requests.delete(f"{API}/admin/licenses/{c['kodi']}", headers=admin_headers, timeout=10)
 
 
 # ---------- Share endpoints ----------
