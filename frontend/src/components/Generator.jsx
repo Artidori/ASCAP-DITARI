@@ -74,15 +74,16 @@ export const Generator = ({ user, onLogout }) => {
           </div>
 
           <div>
-            <button type="button" onClick={() => setMeFoto(!meFoto)} className={`btn-ghost text-xs border ${meFoto ? "border-accent text-accent-dark" : "border-ink/15"}`} data-testid="toggle-photos-btn">
-              <Camera size={14} /> {meFoto ? "Hiq fotot" : "Dua të shtoj foto"}
-            </button>
+            <div className="flex flex-wrap justify-between gap-2">
+              <button type="button" onClick={() => setMeFoto(!meFoto)} className={`btn-ghost text-xs border ${meFoto ? "border-accent text-accent-dark" : "border-ink/15"}`} data-testid="toggle-photos-btn">
+                <Camera size={14} /> {meFoto ? "Hiq fotot" : "Dua të shtoj foto"}
+              </button>
+              <button type="button" onClick={() => setF({ ...f, smartlab: !f.smartlab })} className={`btn-ghost text-xs border ${f.smartlab ? "border-accent bg-accent/5 text-accent-dark" : "border-ink/15"}`} data-testid="smartlab-toggle-btn">
+                <MonitorSmartphone size={14} /> {f.smartlab ? "Ora SMARTLAB: PO" : "Ora SMARTLAB: JO"}
+              </button>
+            </div>
             {meFoto && <div className="mt-4"><PhotoUpload images={images} setImages={setImages} /></div>}
           </div>
-
-          <button type="button" onClick={() => setF({ ...f, smartlab: !f.smartlab })} className={`btn-ghost text-xs border ${f.smartlab ? "border-accent bg-accent/5 text-accent-dark" : "border-ink/15"}`} data-testid="smartlab-toggle-btn">
-            <MonitorSmartphone size={14} /> {f.smartlab ? "Ora SMARTLAB: PO" : "Ora SMARTLAB: JO"}
-          </button>
 
           {kolektive && <KolektiveFields klasat={f.klasat} setKlasat={(klasat) => setF({ ...f, klasat })} lendet={user.lendet} />}
           {akP && <AkFields f={f} set={set} setF={setF} />}
