@@ -13,8 +13,9 @@ export const PAKETA_PERSHKRIM = {
   15: "Gjuhë shqipe, Matematikë, Dituri natyre, Edukim për shoqërinë, Edukim fizik, Muzikë, Art pamor, Teatër, Kërcim (5-6 vjeç).",
   16: "Plan ditor dhe raport javor i mësuesit ndihmës për nxënës me aftësi të kufizuara (sipas PEI), të gjitha lëndët.",
 };
-export const paketaEmri = (n) => PAKETA_FIKSE[Number(n)] || `${n} lëndë`;
-export const eshteFikse = (n) => Number(n) in PAKETA_FIKSE;
+export const PROVA = 99;
+export const paketaEmri = (n) => (Number(n) === PROVA ? "Provë (5 ditarë)" : PAKETA_FIKSE[Number(n)] || `${n} lëndë`);
+export const eshteFikse = (n) => Number(n) in PAKETA_FIKSE || Number(n) === PROVA;
 export const KURRIKULAT = ["Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle"];
 export const KLASAT = ["Parafillor", ...Array.from({ length: 12 }, (_, i) => `Klasa ${i + 1}`)];
 export const KLASAT_FILLORE = KLASAT.slice(1, 6);

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-from ditar_ai import (FUSHA, PAKETA, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
+from ditar_ai import (FUSHA, PAKETA, AK_LENDET, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
                       prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor, prompt_ak_tremujor)
 
 ROOT_DIR = Path(__file__).parent
@@ -98,6 +98,7 @@ class License(BaseModel):
     skadon: str = ""
     maxPajisje: int = 1
     pajisjet: list = []
+    limitDitare: int = 0
     krijuar: str = Field(default_factory=now_iso)
 
 
@@ -301,6 +302,55 @@ async def lic_login(body: LicLogin):
 
 @api.get("/license/me")
 async def me(lic: dict = Depends(require_license)):
+    lic["perdorur"] = lic.get("gjeneruar", 0)
+    return lic
+
+
+# ---------- Provë ----------
+PROVA_PAKETA, PROVA_LIMIT = 99, 5
+
+
+async def trial_token(new: bool = False) -> str:
+    doc = await db.settings.find_one({"_id": "trial"})
+    if new or not doc:
+        token = uuid.uuid4().hex[:12]
+        await db.settings.update_one({"_id": "trial"}, {"$set": {"token": token}}, upsert=True)
+        return token
+    return doc["token"]
+
+
+@api.get("/admin/trial-link")
+async def admin_trial_link(x_admin_password: Optional[str] = Header(None)):
+    require_admin(x_admin_password)
+    return {"token": await trial_token(), "prova": await db.licenses.count_documents({"numriLendeve": PROVA_PAKETA})}
+
+
+@api.post("/admin/trial-link/regenerate")
+async def admin_trial_regen(x_admin_password: Optional[str] = Header(None)):
+    require_admin(x_admin_password)
+    return {"token": await trial_token(new=True)}
+
+
+class TrialStart(BaseModel):
+    token: str
+    pajisja: str
+    pajisjaEmri: str = ""
+
+
+@api.post("/trial/start")
+async def trial_start(body: TrialStart):
+    if not body.pajisja or body.token != await trial_token():
+        raise HTTPException(404, "Linku i provës nuk është më i vlefshëm. Na kontaktoni në WhatsApp.")
+    lic = await db.licenses.find_one({"numriLendeve": PROVA_PAKETA, "pajisjet.id": body.pajisja}, {"_id": 0})
+    if not lic:
+        viti = viti_aktual()
+        rnd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        lic = License(kodi=f"PROVE-{rnd}-{random.randint(1000, 9999)}", numriLendeve=PROVA_PAKETA, aktivizuar=True,
+                      emri="Mësues", mbiemri="(provë)", lendet=AK_LENDET, vitiShkollor=viti, skadon=skadon_per(viti),
+                      pajisjet=[{"id": body.pajisja, "emri": body.pajisjaEmri[:80] or "Pajisje"}],
+                      limitDitare=PROVA_LIMIT).model_dump()
+        await db.licenses.insert_one({**lic})
+    lic["perdorur"] = lic.get("gjeneruar", 0)
     return lic
 
 
@@ -329,6 +379,8 @@ async def run_ai(prompt: str, images: List[str]) -> dict:
 async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
     paketa = lic["numriLendeve"]
     lejuara = PAKETA.get(paketa, {}).get("klasat")
+    if lic.get("limitDitare") and lic.get("gjeneruar", 0) >= lic["limitDitare"]:
+        raise HTTPException(403, f"Keni përdorur të {lic['limitDitare']} ditarët falas të provës. Na shkruani në WhatsApp 0695258165 për të blerë licencën.")
     if len(body.images) > 6:
         raise HTTPException(400, "Maksimumi 6 foto për një ditar.")
     ak = f"Ka nxënës me AK (inicialet: {body.akInitials or 'pa inicialë'}) – përfshi masa konkrete mbështetëse." if body.kaAk else "Nuk ka nxënës me AK."
@@ -385,6 +437,7 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
                  "ditelindja": body.ditelindja, "pozicioni": body.pozicioni,
                  "tema": f"Raport {raport} {body.periudha}".strip() if javor else (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
     await db.ditare.insert_one({**ditar})
+    await db.licenses.update_one({"kodi": lic["kodi"]}, {"$inc": {"gjeneruar": 1}})
     return ditar
 
 

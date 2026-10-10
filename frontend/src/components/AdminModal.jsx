@@ -3,6 +3,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { API, adminApi, errMsg, paketaEmri, eshteFikse, PAKETAT_TE_GJITHA } from "../lib/api";
 import { X, Copy } from "lucide-react";
+import { TrialLink } from "./TrialLink";
 
 const PAJISJE = [[1, "1 pajisje"], [2, "2 pajisje"], [0, "Pa limit pajisjesh"]];
 const fmt = (iso) => iso ? iso.slice(0, 10).split("-").reverse().join(".") : "-";
@@ -68,6 +69,7 @@ export const AdminModal = ({ onClose }) => {
               <button onClick={create} className="btn-primary" data-testid="admin-create-license-btn">Gjenero Kod Licence</button>
               {last && <button onClick={() => copy(last)} className="font-mono font-bold text-accent-dark flex items-center gap-2" data-testid="admin-last-code">{last} <Copy size={14} /></button>}
             </div>
+            <TrialLink pw={pw} />
             <input className="inp mb-4 max-w-sm" placeholder="Kërko mësuesin me emër, email ose kod..." value={q} onChange={(e) => setQ(e.target.value)} data-testid="admin-search-input" />
             <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="admin-license-table">
               <thead><tr className="text-left text-xs uppercase text-muted border-b"><th className="p-2">Mësuesi</th><th>Paketa</th><th className="px-3">Skadon</th><th className="px-3">Ditarë</th><th>Kodi</th><th>Statusi</th><th></th></tr></thead>

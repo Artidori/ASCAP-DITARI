@@ -22,6 +22,7 @@ export const Generator = ({ user, onLogout }) => {
   const javor = akP && f.dokumenti !== "ditor";
   const [images, setImages] = useState([]);
   const [meFoto, setMeFoto] = useState(false);
+  const [perdorur, setPerdorur] = useState(user.perdorur || 0);
   const [busy, setBusy] = useState(false);
   const [ditar, setDitar] = useState(null);
   const [archive, setArchive] = useState(false);
@@ -36,6 +37,7 @@ export const Generator = ({ user, onLogout }) => {
     try {
       const { data } = await licApi().post("/ditar/generate", { ...f, images: meFoto ? images : [] });
       setDitar(data);
+      setPerdorur((x) => x + 1);
       setF((x) => ({ ...x, tema: data.tema }));
       toast.success("Ditari u gjenerua!");
     } catch (e) { toast.error(errMsg(e)); }
@@ -49,6 +51,7 @@ export const Generator = ({ user, onLogout }) => {
         <div className="font-display text-xl">ASCAP<span className="text-accent">.</span>Ditari</div>
         <div className="flex items-center gap-2 text-sm">
           <span className="hidden sm:inline text-muted mr-2" data-testid="user-info"><b className="text-ink">{user.emri} {user.mbiemri}</b> · {eshteFikse(n) ? paketaEmri(n) : user.lendet.join(" & ")} · <span data-testid="license-expiry">Skadon: {user.skadon?.slice(0, 10).split("-").reverse().join(".")}</span></span>
+          {user.limitDitare > 0 && <span className="pill bg-accent/10 text-accent-dark" data-testid="trial-counter">Provë: {perdorur}/{user.limitDitare} ditarë</span>}
           <InstallButton />
           <button onClick={() => setArchive(true)} className="btn-ghost" data-testid="open-archive-btn"><Archive size={16} /> Arkiva</button>
           <button onClick={onLogout} className="btn-ghost" data-testid="logout-btn"><LogOut size={16} /> Dil</button>
