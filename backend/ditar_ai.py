@@ -26,12 +26,12 @@ PARASHKOLLOR = ["Gjuhë Shqipe", "Matematikë", "Dituri Natyre", "Edukim për Sh
 AK_LENDET = list(dict.fromkeys(FILLORE + LENDET_STANDARD))
 
 KLASA = lambda a, b: [f"Klasa {i}" for i in range(a, b + 1)]
-# numriLendeve: 1-3 standard, 0 Fillore, 4 Kolektive, 5 Parashkollor, 6 AK
+# numriLendeve: 1-5 standard, 0 Fillore, 14 Kolektive, 15 Parashkollor, 16 AK
 PAKETA = {
     0: {"emri": "Fillore", "lendet": FILLORE, "klasat": KLASA(1, 5)},
-    4: {"emri": "Klasa Kolektive", "lendet": KOLEKTIVE, "klasat": KLASA(1, 9)},
-    5: {"emri": "Parashkollor", "lendet": PARASHKOLLOR, "klasat": ["Parashkollor (5-6 vjeç)"]},
-    6: {"emri": "Nxënës me AK", "lendet": AK_LENDET, "klasat": KLASA(1, 12)},
+    14: {"emri": "Klasa Kolektive", "lendet": KOLEKTIVE, "klasat": KLASA(1, 9)},
+    15: {"emri": "Parashkollor", "lendet": PARASHKOLLOR, "klasat": ["Parashkollor (5-6 vjeç)"]},
+    16: {"emri": "Nxënës me AK", "lendet": AK_LENDET, "klasat": KLASA(1, 12)},
 }
 KURRIKULAT = ("Kurrikula me Zgjedhje", "Kurrikula në Bazë Shkolle")
 GJUHA = {"Anglisht": "ANGLISHT (English)", "Gjuhë Angleze": "ANGLISHT (English)",
@@ -55,7 +55,7 @@ SYSTEM = """Ti je ekspert i kurrikulës shqiptare (ASCAP) dhe harton ditarë më
 Përgjigju VETËM me një objekt JSON të vlefshëm, pa tekst tjetër, pa markdown. Shkruaj në gjuhën shqipe standarde."""
 
 VETA = """RREGULLA GJUHËSORE:
-- Rezultatet e të nxënit/objektivat shkruhen në VETËN E TRETË NJËJËS për {kush} (p.sh. "{Kush} identifikon...", "përshkruan...", "zbaton...").
+- Rezultatet e të nxënit/objektivat shkruhen në VETËN E TRETË NJËJËS për {kush} në mënyrën dëftore (p.sh. "{Kush} identifikon...", "përshkruan...", "zbaton..."), JO "Të identifikojë...".
 - Përshkrimi i veprimtarive të orës shkruhet në VETËN E PARË nga mësuesi/ja (p.sh. "Prezantoj...", "U kërkoj {kujt} të...", "Ndaj klasën në grupe...", "Shpjegoj...")."""
 
 SMARTLAB = """KJO ËSHTË ORË SMARTLAB: përdor mjetet e laboratorit SMART (tabelë interaktive, tableta, kompjuterë, projektor,
@@ -165,6 +165,29 @@ përforcim pozitiv, përsëritje). Ji konkret dhe praktik.
 {SMARTLAB if smartlab else ''}
 Kthe JSON me këtë strukturë saktësisht:
 {SCHEMA_AK}"""
+
+
+SCHEMA_AK_JAVOR = """{
+ "objektivat": ["3 objektiva që do të synohen gjatë javës (sipas PEI)"],
+ "objektivi_perzgjedhur": "objektivi kryesor i përzgjedhur për këtë javë",
+ "aktivitetet": ["7 aktivitete konkrete 20-25 min secili për përmbushjen e objektivave, me ditën përkatëse (p.sh. 'E hënë: ...')"],
+ "komente_prindi": "aktivitete dhe komente për punën që do të bëjë prindi në shtëpi",
+ "veshtiresite": "vështirësitë e hasura (bazuar te shënimet e mësuesit; bosh nëse s'ka shënime)",
+ "progresi": "progresi i arritur (bazuar te shënimet e mësuesit; bosh nëse s'ka shënime)"
+}"""
+
+
+def prompt_ak_javor(emri_lendes, klasa, lloji, periudha, objektivat, shenime, n_img):
+    return f"""Harto RAPORTIN JAVOR / PLANIN E AKTIVITETEVE (javore) të mësuesit ndihmës për një nxënës me aftësi të kufizuara,
+sipas modelit të manualit të ASCAP për mësuesit ndihmës (Objektivat që do të synohen, Objektivi i përzgjedhur, Zhvillimi i aktiviteteve
+për secilin objektiv – 20-25 min për çdo aktivitet, Komente për aktivitetet e prindit, Vështirësitë e hasura, Progresi i arritur).
+Lënda/fusha: {emri_lendes or 'e përgjithshme'}; {klasa}; Lloji i AK: {lloji or 'i papërcaktuar'}; Periudha: {periudha or 'java aktuale'}.
+Objektivat nga mësuesi (PEI): "{objektivat or '(propozo sipas llojit të AK dhe klasës)'}".
+Shënimet e mësuesit për javën: "{shenime or '(nuk ka; lëri bosh vështirësitë dhe progresin)'}".
+{foto_rule(n_img)}
+Objektivat në vetën e tretë njëjës, mënyra dëftore (p.sh. "Nxënësi/ja lexon...", jo "Të lexojë..."); aktivitetet në vetën e parë nga mësuesi/ja ndihmës.
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_AK_JAVOR}"""
 
 
 def parse_json(text: str) -> dict:

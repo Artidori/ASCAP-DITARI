@@ -1,7 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { API, LENDET, errMsg, deviceInfo, PAKETA_FIKSE, PAKETA_PERSHKRIM, eshteFikse } from "../lib/api";
+import { API, LENDET, errMsg, deviceInfo, PAKETA_FIKSE, PAKETA_PERSHKRIM, eshteFikse, PAKETAT_STANDARD } from "../lib/api";
+import { Cmimet } from "./Cmimet";
 import { AdminModal } from "./AdminModal";
 
 const Field = ({ label, children }) => (
@@ -13,7 +14,7 @@ const Field = ({ label, children }) => (
 
 export const LoginScreen = ({ onLogin }) => {
   const [mode, setMode] = useState("hyr");
-  const [f, setF] = useState({ emri: "", mbiemri: "", email: localStorage.getItem("ascap_email") || "", kodi: localStorage.getItem("ascap_last_kodi") || "", n: 1, l: ["Gjuhë Shqipe", "Matematikë", "Anglisht"] });
+  const [f, setF] = useState({ emri: "", mbiemri: "", email: localStorage.getItem("ascap_email") || "", kodi: localStorage.getItem("ascap_last_kodi") || "", n: 1, l: ["Gjuhë Shqipe", "Matematikë", "Anglisht", "Dituri Natyre", "TIK"] });
   const [busy, setBusy] = useState(false);
   const [admin, setAdmin] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -77,11 +78,11 @@ export const LoginScreen = ({ onLogin }) => {
           {mode === "aktivizo" && <>
           <Field label="Paketa e licencës">
             <select className="inp" value={f.n} onChange={set("n")} data-testid="reg-paketa">
-              {[1, 2, 3].map((n) => <option key={n} value={n}>Licencë për {n} lëndë</option>)}
+              {PAKETAT_STANDARD.map((n) => <option key={n} value={n}>Licencë për {n} lëndë</option>)}
               {Object.entries(PAKETA_FIKSE).map(([k, t]) => <option key={k} value={k}>Paketa {t}</option>)}
             </select>
           </Field>
-          <div className={`grid gap-3 grid-cols-${f.n}`} style={{ gridTemplateColumns: `repeat(${f.n},1fr)` }}>
+          <div className={`grid gap-3 grid-cols-${f.n}`} style={{ gridTemplateColumns: `repeat(${Math.min(Number(f.n) || 1, 3)},1fr)` }}>
             {eshteFikse(f.n) && <p className="text-xs text-muted">{PAKETA_PERSHKRIM[f.n]}</p>}
             {Array.from({ length: eshteFikse(f.n) ? 0 : Number(f.n) }).map((_, i) => (
               <Field key={i} label={`Lënda ${i + 1}`}>
@@ -94,6 +95,7 @@ export const LoginScreen = ({ onLogin }) => {
           </>}
           <Field label="Kodi i licencës"><input className="inp font-mono uppercase" placeholder="ASCAP-XXXXXX-0000" value={f.kodi} onChange={set("kodi")} data-testid="reg-kodi" /></Field>
           <button disabled={busy} className="btn-primary w-full" data-testid="activate-btn">{busy ? "Duke verifikuar..." : mode === "hyr" ? "Hyr" : "Aktivizo dhe Hyr"}</button>
+          <Cmimet />
         </form>
       </main>
       {admin && <AdminModal onClose={() => setAdmin(false)} />}

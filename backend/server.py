@@ -16,7 +16,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from ditar_ai import (FUSHA, PAKETA, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
-                      prompt_standard, prompt_kolektive, prompt_ak)
+                      prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -137,6 +137,9 @@ class GenerateReq(BaseModel):
     smartlab: bool = False
     llojiAk: str = ""
     koha: str = ""
+    dokumenti: str = "ditor"
+    periudha: str = ""
+    shenime: str = ""
     data: str
     tema: str = ""
     vitiShkollor: str = ""
@@ -167,7 +170,7 @@ async def admin_list(x_admin_password: Optional[str] = Header(None)):
 @api.post("/admin/licenses")
 async def admin_create(body: NewLicense, x_admin_password: Optional[str] = Header(None)):
     require_admin(x_admin_password)
-    if body.numriLendeve not in (1, 2, 3, *PAKETA):
+    if body.numriLendeve not in (1, 2, 3, 4, 5, *PAKETA):
         raise HTTPException(400, "Paketë e pavlefshme")
     if body.maxPajisje not in (0, 1, 2):
         raise HTTPException(400, "Pajisjet duhet të jenë 1, 2 ose pa limit")
@@ -331,7 +334,7 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
             "data": body.data, "vitiShkollor": body.vitiShkollor, "kaAk": body.kaAk, "akInitials": body.akInitials,
             "smartlab": body.smartlab, "html": None, "krijuar": now_iso()}
 
-    if paketa == 4:
+    if paketa == 14:
         if not 2 <= len(body.klasat) <= 3:
             raise HTTPException(400, "Zgjidhni 2 ose 3 klasa.")
         kl = sorted(body.klasat, key=lambda k: klasa_nr(k.klasa))
@@ -359,18 +362,22 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
             raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
         if lejuara and body.klasa not in lejuara:
             raise HTTPException(403, f"Paketa {PAKETA[paketa]['emri']} nuk vlen për {body.klasa}.")
-        if not body.images and not body.tema.strip():
+        javor = paketa == 16 and body.dokumenti == "javor"
+        if not javor and not body.images and not body.tema.strip():
             raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
         emri = emri_lende(body.lenda, body.lendaKurrikules)
-        if paketa == 6:
+        if paketa == 16 and body.dokumenti == "javor":
+            prompt = prompt_ak_javor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime, len(body.images))
+        elif paketa == 16:
             prompt = prompt_ak(emri, body.klasa, body.tema, body.llojiAk, body.koha, len(body.images), body.smartlab)
         else:
-            prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, len(body.images), body.smartlab, paketa == 5)
+            prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, len(body.images), body.smartlab, paketa == 15)
         content = await run_ai(prompt, body.images)
-        ditar = {**base, "lloji": {6: "ak", 5: "parashkollor"}.get(paketa, "standard"),
+        ditar = {**base, "lloji": "ak_javor" if javor else {16: "ak", 15: "parashkollor"}.get(paketa, "standard"),
+                 "periudha": body.periudha,
                  "lenda": body.lenda, "lendaEmri": emri, "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"),
                  "shkalla": shkalla(body.klasa), "klasa": body.klasa, "llojiAk": body.llojiAk, "koha": body.koha,
-                 "tema": body.tema.strip() or content.get("tema", ""), "permbajtja": content}
+                 "tema": f"Raport javor {body.periudha}".strip() if javor else (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
     await db.ditare.insert_one({**ditar})
     return ditar
 
@@ -450,6 +457,10 @@ async def backfill_expiry():
 
 @app.on_event("startup")
 async def sync_paketa_lendet():
+    if not await db.migrations.find_one({"_id": "paketa_v2"}):
+        for old, new in ((6, 16), (5, 15), (4, 14)):
+            await db.licenses.update_many({"numriLendeve": old}, {"$set": {"numriLendeve": new}})
+        await db.migrations.insert_one({"_id": "paketa_v2"})
     for n, p in PAKETA.items():
         await db.licenses.update_many({"numriLendeve": n, "aktivizuar": True}, {"$set": {"lendet": p["lendet"]}})
 

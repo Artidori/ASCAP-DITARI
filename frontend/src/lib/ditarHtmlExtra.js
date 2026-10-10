@@ -50,3 +50,20 @@ ${d.smartlab ? smartRow(4) : ""}
 <tr>${td(`${b("Këshilla për prindërit (puna në shtëpi):")} ${esc(p.prinderit)}`, 4)}</tr>
 </table>`;
 }
+
+export function buildAkJavorHtml(d) {
+  const p = d.permbajtja || {};
+  const vija = "______________________________________<br>______________________________________";
+  const num = (arr) => (arr || []).map((x, i) => `${i + 1}. ${esc(x)}`).join("<br>");
+  return `${TABLE}
+<tr>${td("PLANI I AKTIVITETEVE (javore)", 4, center + "background-color:#f2f2f2;")}</tr>
+<tr>${td(`${b("Emri:")} ${esc(d.akInitials)}`)}${td(`${b("Periudha:")} ${esc(d.periudha)}`)}${td(`${b("Mësuesja:")} ${esc(d.mesuesi)}`)}${td(`${b("Klasa:")} ${esc(romake(d.klasa))}`)}</tr>
+<tr>${td(`${b("Lloji i AK:")} ${esc(d.llojiAk)}`, 2)}${td(`${b("Lënda / fusha:")} ${esc(d.lendaEmri || d.lenda)}`, 2)}</tr>
+<tr>${td(`${b("Objektivat që do të synohen:")}<br>${num(p.objektivat)}`, 4)}</tr>
+<tr>${td(`${b("Data:")} ${esc(d.data)} &nbsp; ${b("Koha që do të punohet me fëmijën:")} 20’–25’ minuta për çdo aktivitet.<br>${b("Përzgjedhja e njërit prej objektivave:")} ${esc(p.objektivi_perzgjedhur)}`, 4)}</tr>
+<tr>${td(`${b("Zhvillimi i aktiviteteve për secilin objektiv:")}<br>${num(p.aktivitetet)}`, 4)}</tr>
+<tr>${td(`${b("Komente për çdo aktivitet të përzgjedhur për t'u punuar nga prindi:")}<br>${esc(p.komente_prindi) || vija}`, 4)}</tr>
+<tr>${td(`${b("Vështirësitë e hasura për çdo aktivitet:")}<br>${esc(p.veshtiresite) || vija}`, 4)}</tr>
+<tr>${td(`${b("Progresi i arritur në çdo aktivitet:")}<br>${esc(p.progresi) || vija}`, 4)}</tr>
+</table>`;
+}

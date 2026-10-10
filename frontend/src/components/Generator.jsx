@@ -12,13 +12,14 @@ import { InstallButton } from "./InstallButton";
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
 const blank = (lenda, n) => {
   const kl = klasatPer(n);
-  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda) };
+  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), dokumenti: "ditor", periudha: "", shenime: "" };
 };
 
 export const Generator = ({ user, onLogout }) => {
   const n = user.numriLendeve;
-  const kolektive = n === 4, akP = n === 6;
+  const kolektive = n === 14, akP = n === 16;
   const [f, setF] = useState(blank(user.lendet[0], n));
+  const javor = akP && f.dokumenti === "javor";
   const [images, setImages] = useState([]);
   const [meFoto, setMeFoto] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,7 +31,7 @@ export const Generator = ({ user, onLogout }) => {
     const kaFoto = meFoto && images.length;
     const rreshta = kolektive ? f.klasat : [f];
     if (rreshta.some((k) => KURRIKULAT.includes(k.lenda) && !k.lendaKurrikules.trim())) return toast.error("Shkruani emrin e lëndës për kurrikulën.");
-    if (!kaFoto && rreshta.some((k) => !k.tema.trim())) return toast.error("Ngarkoni foto të librit ose shkruani temën.");
+    if (!javor && !kaFoto && rreshta.some((k) => !k.tema.trim())) return toast.error("Ngarkoni foto të librit ose shkruani temën.");
     setBusy(true);
     try {
       const { data } = await licApi().post("/ditar/generate", { ...f, images: meFoto ? images : [] });
@@ -84,7 +85,7 @@ export const Generator = ({ user, onLogout }) => {
           </button>
 
           {kolektive && <KolektiveFields klasat={f.klasat} setKlasat={(klasat) => setF({ ...f, klasat })} lendet={user.lendet} />}
-          {akP && <AkFields f={f} set={set} />}
+          {akP && <AkFields f={f} set={set} setF={setF} />}
 
           <div className="grid sm:grid-cols-2 gap-4">
             {!kolektive && <>
@@ -104,7 +105,7 @@ export const Generator = ({ user, onLogout }) => {
             <label><span className="lbl">Viti shkollor</span><input className="inp" value={f.vitiShkollor} onChange={set("vitiShkollor")} data-testid="viti-input" /></label>
           </div>
           {!kolektive && (
-          <label className="block"><span className="lbl">{akP ? "Tema / objektivi nga PEI" : "Tema mësimore"} <span className="normal-case font-normal">(opsionale nëse ngarkoni foto)</span></span>
+          <label className="block"><span className="lbl">{javor ? "Objektivat nga PEI" : akP ? "Tema / objektivi nga PEI" : "Tema mësimore"} <span className="normal-case font-normal">{javor ? "(opsionale)" : "(opsionale nëse ngarkoni foto)"}</span></span>
             <input className="inp" placeholder="AI e nxjerr nga fotot nëse e lini bosh" value={f.tema} onChange={set("tema")} data-testid="tema-input" />
           </label>
           )}

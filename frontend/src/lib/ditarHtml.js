@@ -1,5 +1,5 @@
 import { esc, td, b, smartRow } from "./htmlUtil";
-import { buildKolektiveHtml, buildAkHtml } from "./ditarHtmlExtra";
+import { buildKolektiveHtml, buildAkHtml, buildAkJavorHtml } from "./ditarHtmlExtra";
 
 const LABELS = {
   sq: { fusha: "Fusha", lenda: "Lënda", shkalla: "Shkalla", klasa: "Klasa", data: "Data", tema: "Tema mësimore", situata: "Situata e të nxënit", rez: "Rezultatet e të nxënit të kompetencave të fushës sipas temës mësimore", kom: "Komunikimi", men: "Të menduarit", per: "Personale", fjalet: "Fjalët kyçe", burimet: "Burimet dhe Teknologjia", tek: "Teknologjia", lidhja: "Lidhja me fushat e tjera", metTitle: "Metodologjia dhe veprimtaritë e nxënësve", met: "METODOLOGJIA", pershk: "PËRSHKRIMI I VEPRIMTARIVE", f1: "Lidhja e temës me njohuritë e mëparshme të nxënësve", f2: "Ndërtimi i njohurive të reja", f3: "Prezantimi dhe demonstrimi i rezultateve", min: "minuta", teknika: "Teknika", hapi: "Hapi", vler: "Vlerësimi dhe feedback-u", niveli: "Niveli", feedback: "Feedback-u", dif: "Diferencimi (Nxënësit e avancuar dhe me AK)", avan: "Nxënësit e avancuar", ak: "Nxënësi me AK", mbes: "Mbështetja", det: "Detyrat dhe puna e pavarur", detyra: "Detyra", lvl: ["Bazë", "Mesatare", "E avancuar"], ref: "Refleksioni i mësuesit: (Të plotësohet pas mësimit)" },
@@ -15,6 +15,7 @@ export const gjuhaPer = (lenda) => (["Anglisht", "Gjuhë Angleze"].includes(lend
 export function buildDitarHtml(d) {
   if (d.lloji === "kolektive") return buildKolektiveHtml(d);
   if (d.lloji === "ak") return buildAkHtml(d);
+  if (d.lloji === "ak_javor") return buildAkJavorHtml(d);
   const g = gjuhaPer(d.lenda);
   const para = d.lloji === "parashkollor";
   const L = para ? { ...LABELS.sq, ...PARASHKOLLOR } : LABELS[g];

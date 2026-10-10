@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "sonner";
-import { API, adminApi, errMsg, paketaEmri, eshteFikse } from "../lib/api";
+import { API, adminApi, errMsg, paketaEmri, eshteFikse, PAKETAT_TE_GJITHA } from "../lib/api";
 import { X, Copy } from "lucide-react";
 
 const PAJISJE = [[1, "1 pajisje"], [2, "2 pajisje"], [0, "Pa limit pajisjesh"]];
@@ -52,7 +52,7 @@ export const AdminModal = ({ onClose }) => {
             <div className="flex flex-wrap gap-3 items-end p-5 rounded-xl bg-ink/[0.04] mb-6">
               <label><span className="lbl">Paketa</span>
                 <select className="inp" value={pak} onChange={(e) => setPak(e.target.value)} data-testid="admin-paketa-select">
-                  {[1, 2, 3, 0, 4, 5, 6].map((n) => <option key={n} value={n}>{paketaEmri(n)}</option>)}
+                  {PAKETAT_TE_GJITHA.map((n) => <option key={n} value={n}>{paketaEmri(n)}</option>)}
                 </select>
               </label>
               <label><span className="lbl">Viti shkollor</span>
