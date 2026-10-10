@@ -12,14 +12,14 @@ import { InstallButton } from "./InstallButton";
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
 const blank = (lenda, n) => {
   const kl = klasatPer(n);
-  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), dokumenti: "ditor", periudha: "", shenime: "" };
+  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), dokumenti: "ditor", periudha: "", shenime: "", ditelindja: "", pozicioni: "Mësues ndihmës" };
 };
 
 export const Generator = ({ user, onLogout }) => {
   const n = user.numriLendeve;
   const kolektive = n === 14, akP = n === 16;
   const [f, setF] = useState(blank(user.lendet[0], n));
-  const javor = akP && f.dokumenti === "javor";
+  const javor = akP && f.dokumenti !== "ditor";
   const [images, setImages] = useState([]);
   const [meFoto, setMeFoto] = useState(false);
   const [busy, setBusy] = useState(false);

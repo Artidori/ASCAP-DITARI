@@ -67,3 +67,16 @@ export function buildAkJavorHtml(d) {
 <tr>${td(`${b("Progresi i arritur në çdo aktivitet:")}<br>${esc(p.progresi) || vija}`, 4)}</tr>
 </table>`;
 }
+
+export function buildAkTremujorHtml(d) {
+  const p = d.permbajtja || {};
+  return `${TABLE}
+<tr>${td("RAPORTI TREMUJOR", 2, center + "background-color:#f2f2f2;")}</tr>
+<tr>${td(`${b("Emri i fëmijës:")} ${esc(d.akInitials)}`)}${td(`${b("Ditëlindja:")} ${esc(d.ditelindja) || "____/____/______"}`)}</tr>
+<tr>${td(`${b("Pozicioni i punës së personit që plotëson raportin:")} ${esc(d.pozicioni)} – ${esc(d.mesuesi)}`)}${td(`${b("Disiplina që do të përfshihet në raport:")} ${esc(d.lendaEmri || d.lenda)}`)}</tr>
+<tr>${td(`${b("Data:")} ${esc(d.data)} &nbsp; ${b("Klasa:")} ${esc(romake(d.klasa))} &nbsp; ${b("Lloji i AK:")} ${esc(d.llojiAk)}`)}${td(`${b("Raport:")} ${esc(d.periudha)}`)}</tr>
+<tr>${td(`${b("Progresi i objektivave të PEI (objektivat që janë arritur tremujorin, pikat e forta dhe të dobëta):")}<br>${esc(p.progresi)}<br>${b("Pikat e forta:")}<br>${list(p.pika_forta)}<br>${b("Pikat e dobëta:")}<br>${list(p.pika_dobeta)}`, 2)}</tr>
+<tr>${td(`${b("Rekomandimet (objektiva specifike për t'u pasur parasysh në tremujorin pasardhës, ndryshime në frekuencën ose zgjatjen nëse është e aplikueshme):")}<br>${list(p.rekomandimet)}`, 2)}</tr>
+<tr>${td(`${b("Aktivitete të sugjerueshme/materiale për prindërit për të arritur objektivat:")}<br>${list(p.aktivitete_prinderit)}`, 2)}</tr>
+</table>`;
+}

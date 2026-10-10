@@ -16,7 +16,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from ditar_ai import (FUSHA, PAKETA, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
-                      prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor)
+                      prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor, prompt_ak_tremujor)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -140,6 +140,8 @@ class GenerateReq(BaseModel):
     dokumenti: str = "ditor"
     periudha: str = ""
     shenime: str = ""
+    ditelindja: str = ""
+    pozicioni: str = ""
     data: str
     tema: str = ""
     vitiShkollor: str = ""
@@ -362,22 +364,26 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
             raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
         if lejuara and body.klasa not in lejuara:
             raise HTTPException(403, f"Paketa {PAKETA[paketa]['emri']} nuk vlen për {body.klasa}.")
-        javor = paketa == 16 and body.dokumenti == "javor"
+        raport = body.dokumenti if paketa == 16 and body.dokumenti in ("javor", "tremujor") else ""
+        javor = bool(raport)
         if not javor and not body.images and not body.tema.strip():
             raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
         emri = emri_lende(body.lenda, body.lendaKurrikules)
-        if paketa == 16 and body.dokumenti == "javor":
+        if paketa == 16 and body.dokumenti == "tremujor":
+            prompt = prompt_ak_tremujor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime)
+        elif paketa == 16 and body.dokumenti == "javor":
             prompt = prompt_ak_javor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime, len(body.images))
         elif paketa == 16:
             prompt = prompt_ak(emri, body.klasa, body.tema, body.llojiAk, body.koha, len(body.images), body.smartlab)
         else:
             prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, len(body.images), body.smartlab, paketa == 15)
         content = await run_ai(prompt, body.images)
-        ditar = {**base, "lloji": "ak_javor" if javor else {16: "ak", 15: "parashkollor"}.get(paketa, "standard"),
+        ditar = {**base, "lloji": f"ak_{raport}" if javor else {16: "ak", 15: "parashkollor"}.get(paketa, "standard"),
                  "periudha": body.periudha,
                  "lenda": body.lenda, "lendaEmri": emri, "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"),
                  "shkalla": shkalla(body.klasa), "klasa": body.klasa, "llojiAk": body.llojiAk, "koha": body.koha,
-                 "tema": f"Raport javor {body.periudha}".strip() if javor else (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
+                 "ditelindja": body.ditelindja, "pozicioni": body.pozicioni,
+                 "tema": f"Raport {raport} {body.periudha}".strip() if javor else (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
     await db.ditare.insert_one({**ditar})
     return ditar
 

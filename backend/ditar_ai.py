@@ -190,6 +190,27 @@ Kthe JSON me këtë strukturë saktësisht:
 {SCHEMA_AK_JAVOR}"""
 
 
+SCHEMA_AK_TREMUJOR = """{
+ "progresi": "progresi i objektivave të PEI: cilat objektiva janë arritur këtë tremujor (4-6 fjali)",
+ "pika_forta": ["2-3 pika të forta"],
+ "pika_dobeta": ["2-3 pika të dobëta / për t'u përmirësuar"],
+ "rekomandimet": ["3-4 objektiva specifike për tremujorin pasardhës, ndryshime në frekuencë ose zgjatje nëse aplikohet"],
+ "aktivitete_prinderit": ["3-4 aktivitete/materiale të sugjeruara për prindërit për të arritur objektivat"]
+}"""
+
+
+def prompt_ak_tremujor(emri_lendes, klasa, lloji, tremujori, objektivat, shenime):
+    return f"""Harto RAPORTIN TREMUJOR të mësuesit ndihmës për një nxënës me aftësi të kufizuara, sipas modelit të manualit të ASCAP
+(Progresi i objektivave të PEI – objektivat e arritura, pikat e forta dhe të dobëta; Rekomandimet për tremujorin pasardhës;
+Aktivitete/materiale të sugjerueshme për prindërit).
+Disiplina: {emri_lendes or 'e përgjithshme'}; {klasa}; Lloji i AK: {lloji or 'i papërcaktuar'}; Tremujori: {tremujori}.
+Objektivat e PEI nga mësuesi: "{objektivat or '(propozo sipas llojit të AK dhe klasës)'}".
+Shënimet e mësuesit për tremujorin: "{shenime or '(nuk ka; shkruaj në mënyrë të përgjithshme dhe të kujdesshme)'}".
+Shkruaj në vetën e tretë njëjës për nxënësin, mënyra dëftore (p.sh. "Nxënësi/ja lexon...", jo "Të lexojë..."). Ji profesional dhe konkret.
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_AK_TREMUJOR}"""
+
+
 def parse_json(text: str) -> dict:
     t = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     s, e = t.find("{"), t.rfind("}")
