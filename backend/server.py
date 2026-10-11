@@ -16,7 +16,8 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from ditar_ai import (FUSHA, PAKETA, AK_LENDET, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
-                      prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor, prompt_ak_tremujor)
+                      prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor, prompt_ak_tremujor, prompt_90, prompt_ak2, FIGURA)
+from media import put_object, get_object, generate_figure, init_storage, APP_NAME
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -143,6 +144,9 @@ class GenerateReq(BaseModel):
     shenime: str = ""
     ditelindja: str = ""
     pozicioni: str = ""
+    ore90: bool = False
+    tema2: str = ""
+    figura: bool = False
     data: str
     tema: str = ""
     vitiShkollor: str = ""
@@ -375,6 +379,32 @@ async def run_ai(prompt: str, images: List[str]) -> dict:
         raise HTTPException(502, f"Analiza me AI dështoi. Provoni përsëri. ({str(e)[:120]})")
 
 
+async def make_figure(fig) -> Optional[dict]:
+    if not isinstance(fig, dict) or not fig.get("pershkrimi"):
+        return None
+    try:
+        data = await generate_figure(fig["pershkrimi"])
+        fid = uuid.uuid4().hex
+        res = put_object(f"{APP_NAME}/figura/{fid}.jpg", data, "image/jpeg")
+        await db.files.insert_one({"id": fid, "storage_path": res["path"], "content_type": "image/jpeg", "is_deleted": False, "created_at": now_iso()})
+        return {"id": fid, "titulli": fig.get("titulli", "")}
+    except Exception:
+        logger.exception("Figure generation failed")
+        return None
+
+
+def figure_bytes(fid: str) -> bytes:
+    return get_object(f"{APP_NAME}/figura/{fid}.jpg")
+
+
+@api.get("/figura/{fid}")
+async def figura(fid: str):
+    rec = await db.files.find_one({"id": fid, "is_deleted": False})
+    if not rec:
+        raise HTTPException(404, "Figura nuk u gjet")
+    return Response(content=get_object(rec["storage_path"]), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000"})
+
+
 @api.post("/ditar/generate")
 async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
     paketa = lic["numriLendeve"]
@@ -421,7 +451,12 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
         if not javor and not body.images and not body.tema.strip():
             raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
         emri = emri_lende(body.lenda, body.lendaKurrikules)
-        if paketa == 16 and body.dokumenti == "tremujor":
+        ore90 = body.ore90 and paketa not in (14, 15, 16)
+        if paketa == 16 and body.dokumenti == "ditor2":
+            prompt = prompt_ak2(emri, body.klasa, body.tema, body.llojiAk, len(body.images), body.smartlab)
+        elif ore90:
+            prompt = prompt_90(emri, body.lenda, body.klasa, body.tema, body.tema2, ak, len(body.images), body.smartlab)
+        elif paketa == 16 and body.dokumenti == "tremujor":
             prompt = prompt_ak_tremujor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime)
         elif paketa == 16 and body.dokumenti == "javor":
             prompt = prompt_ak_javor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime, len(body.images))
@@ -429,13 +464,19 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
             prompt = prompt_ak(emri, body.klasa, body.tema, body.llojiAk, body.koha, len(body.images), body.smartlab)
         else:
             prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, len(body.images), body.smartlab, paketa == 15)
-        content = await run_ai(prompt, body.images)
-        ditar = {**base, "lloji": f"ak_{raport}" if javor else {16: "ak", 15: "parashkollor"}.get(paketa, "standard"),
+        me_figure = body.figura and not javor and paketa != 16
+        content = await run_ai(prompt + (FIGURA if me_figure else ""), body.images)
+        lloji = "ak2" if paketa == 16 and body.dokumenti == "ditor2" else "standard90" if ore90 else \
+            f"ak_{raport}" if javor else {16: "ak", 15: "parashkollor"}.get(paketa, "standard")
+        base["figura"] = await make_figure(content.get("figura")) if me_figure else None
+        ditar = {**base, "lloji": lloji,
                  "periudha": body.periudha,
                  "lenda": body.lenda, "lendaEmri": emri, "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"),
                  "shkalla": shkalla(body.klasa), "klasa": body.klasa, "llojiAk": body.llojiAk, "koha": body.koha,
                  "ditelindja": body.ditelindja, "pozicioni": body.pozicioni,
-                 "tema": f"Raport {raport} {body.periudha}".strip() if javor else (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
+                 "tema": f"Raport {raport} {body.periudha}".strip() if javor else
+                 " | ".join(filter(None, [body.tema.strip() or content.get("tema1", ""), body.tema2.strip() or content.get("tema2", "")])) if ore90 else
+                 (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
     await db.ditare.insert_one({**ditar})
     await db.licenses.update_one({"kodi": lic["kodi"]}, {"$inc": {"gjeneruar": 1}})
     return ditar
@@ -462,7 +503,7 @@ async def ditar_docx(did: str, body: DocxReq, lic: dict = Depends(require_licens
     if not d:
         raise HTTPException(404, "Ditari nuk u gjet")
     header = f"Mësuesi/ja: {d['mesuesi']} | Viti Shkollor: {d.get('vitiShkollor') or viti_aktual()}"
-    data = build_docx(body.html, 11 if body.fontSize <= 11 else 12, header)
+    data = build_docx(body.html, 11 if body.fontSize <= 11 else 12, header, figure_bytes)
     return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
@@ -482,7 +523,7 @@ async def shared_docx(token: str):
     if not d:
         raise HTTPException(404, "Dokumenti nuk u gjet")
     header = f"Mësuesi/ja: {d['mesuesi']} | Viti Shkollor: {d.get('vitiShkollor') or viti_aktual()}"
-    data = build_docx(d["share_html"], 11 if d.get("share_font", 12) <= 11 else 12, header)
+    data = build_docx(d["share_html"], 11 if d.get("share_font", 12) <= 11 else 12, header, figure_bytes)
     name = re.sub(r"[^\w.-]+", "_", f"Ditari_{d['lenda']}_{d['klasa']}_{d['data']}", flags=re.ASCII)
     return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     headers={"Content-Disposition": f'attachment; filename="{name}.docx"'})
@@ -512,6 +553,14 @@ async def backfill_expiry():
     viti = viti_aktual()
     await db.licenses.update_many({"$or": [{"skadon": {"$exists": False}}, {"skadon": ""}]},
                                   {"$set": {"vitiShkollor": viti, "skadon": skadon_per(viti)}})
+
+
+@app.on_event("startup")
+async def storage_startup():
+    try:
+        init_storage()
+    except Exception:
+        logger.exception("Storage init failed")
 
 
 @app.on_event("startup")

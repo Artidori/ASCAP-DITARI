@@ -211,6 +211,58 @@ Kthe JSON me këtë strukturë saktësisht:
 {SCHEMA_AK_TREMUJOR}"""
 
 
+SCHEMA_90 = """{
+ "tema1": "tema e orës I", "tema2": "tema e orës II",
+ "situata1": "situata e të nxënit për temën 1", "situata2": "situata për temën 2",
+ "rezultatet1": ["3 rezultate për temën 1"], "rezultatet2": ["3 rezultate për temën 2"],
+ "fjalet_kyce": "fjalët kyçe të të dy temave", "burimet": "...", "teknologjia": "...", "lidhja_fushat": "...",
+ "fazat": [{"teknika": "...", "pershkrimi": "..."}],
+ "vleresimi1": ["Niveli 1 ...", "Niveli 2 ...", "Niveli 3 ..."], "vleresimi2": ["...", "...", "..."],
+ "feedback": "1-2 fjali feedback-u",
+ "diferencimi": {"avancuar": "...", "ak": "..."},
+ "detyrat": ["Detyrë bazë ...", "Detyrë mesatare ...", "Detyrë e avancuar ..."],
+ "refleksioni": ["pyetje refleksioni 1", "pyetje refleksioni 2"]
+}"""
+
+FIGURA = """\nShto edhe fushën "figura": {"pershkrimi": "përshkrim i shkurtër NË ANGLISHT i një ilustrimi edukativ të thjeshtë që ndihmon këtë mësim (skemë, objekt, skenë), pa tekst", "titulli": "titull i shkurtër në gjuhën e ditarit"}."""
+
+
+def prompt_90(emri_lendes, lenda, klasa, tema1, tema2, ak, n_img, smartlab):
+    return f"""Harto DITAR 90 MINUTËSH (2 orë të njëpasnjëshme nga 45 min) për: Lënda: {emri_lendes}; {klasa}; Shkalla {shkalla(klasa)}.
+Tema 1 (Ora I): "{tema1 or '(nxirre nga fotot)'}". Tema 2 (Ora II): "{tema2 or '(vazhdimi logjik i temës 1 / nga fotot)'}".
+{ak}
+{foto_rule(n_img)}
+Lista "fazat" ka saktësisht 6 elemente sipas radhës: Ora I – lidhja me njohuritë e mëparshme (10 min), ndërtimi i njohurive (25 min),
+prezantimi i rezultateve (10 min); Ora II – të njëjtat 3 faza. Në fazën e ndërtimit shkruaj "Hapi 1: ... Hapi 2: ...". Ji specifik.
+{VETA.format(kush="Nxënësi/ja", Kush="Nxënësi/ja", kujt="nxënësve")}
+{SMARTLAB if smartlab else ''}
+Mos shkruaj parashtesa si "Niveli 1:" ose "Detyra 1:" në vlera.{lang_rule(lenda)}
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_90}"""
+
+
+SCHEMA_AK2 = """{
+ "tema": "...", "situata": "...",
+ "rezultatet": "rezultatet e të nxënit të kompetencave të fushës për klasën",
+ "rezultatet_pei": "rezultatet e të nxënit të përshtatura për nxënësin me AK sipas PEI",
+ "fjalet_kyce": "...", "metodologjia": "metodat dhe teknikat",
+ "burimet": "burimet e informacionit dhe mjetet", "lidhja": "lidhja me lëndë/fusha të tjera",
+ "veprimtari_paraprake": "...", "hapat": ["Hapi 1 ...", "Hapi 2 ...", "Hapi 3 ..."],
+ "vleresimi": "vlerësimi i nxënësit", "detyre_shtepie": "..."
+}"""
+
+
+def prompt_ak2(emri_lendes, klasa, tema, lloji, n_img, smartlab):
+    return f"""Harto PLAN DITOR (modeli 2) për një orë mësimi me një nxënës me aftësi të kufizuara (lloji: {lloji or 'i papërcaktuar'}),
+të përshtatur sipas PEI. Lënda: {emri_lendes}; {klasa}. Tema: "{tema or '(nxirre nga fotot e librit)'}".
+{foto_rule(n_img)}
+Përdor strategji të përshtatshme për llojin e AK. Ji konkret dhe praktik.
+{VETA.format(kush="Nxënësi/ja", Kush="Nxënësi/ja", kujt="nxënësit")}
+{SMARTLAB if smartlab else ''}
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_AK2}"""
+
+
 def parse_json(text: str) -> dict:
     t = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     s, e = t.find("{"), t.rfind("}")

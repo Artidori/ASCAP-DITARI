@@ -1,5 +1,5 @@
-import { esc, td, b, smartRow } from "./htmlUtil";
-import { buildKolektiveHtml, buildAkHtml, buildAkJavorHtml, buildAkTremujorHtml } from "./ditarHtmlExtra";
+import { esc, td, b, smartRow, figRow, list, TABLE } from "./htmlUtil";
+import { buildKolektiveHtml, buildAkHtml, buildAkJavorHtml, buildAkTremujorHtml, buildAk2Html } from "./ditarHtmlExtra";
 
 const LABELS = {
   sq: { fusha: "Fusha", lenda: "Lënda", shkalla: "Shkalla", klasa: "Klasa", data: "Data", tema: "Tema mësimore", situata: "Situata e të nxënit", rez: "Rezultatet e të nxënit të kompetencave të fushës sipas temës mësimore", kom: "Komunikimi", men: "Të menduarit", per: "Personale", fjalet: "Fjalët kyçe", burimet: "Burimet dhe Teknologjia", tek: "Teknologjia", lidhja: "Lidhja me fushat e tjera", metTitle: "Metodologjia dhe veprimtaritë e nxënësve", met: "METODOLOGJIA", pershk: "PËRSHKRIMI I VEPRIMTARIVE", f1: "Lidhja e temës me njohuritë e mëparshme të nxënësve", f2: "Ndërtimi i njohurive të reja", f3: "Prezantimi dhe demonstrimi i rezultateve", min: "minuta", teknika: "Teknika", hapi: "Hapi", vler: "Vlerësimi dhe feedback-u", niveli: "Niveli", feedback: "Feedback-u", dif: "Diferencimi (Nxënësit e avancuar dhe me AK)", avan: "Nxënësit e avancuar", ak: "Nxënësi me AK", mbes: "Mbështetja", det: "Detyrat dhe puna e pavarur", detyra: "Detyra", lvl: ["Bazë", "Mesatare", "E avancuar"], ref: "Refleksioni i mësuesit: (Të plotësohet pas mësimit)" },
@@ -17,6 +17,8 @@ export function buildDitarHtml(d) {
   if (d.lloji === "ak") return buildAkHtml(d);
   if (d.lloji === "ak_javor") return buildAkJavorHtml(d);
   if (d.lloji === "ak_tremujor") return buildAkTremujorHtml(d);
+  if (d.lloji === "ak2") return buildAk2Html(d);
+  if (d.lloji === "standard90") return build90Html(d);
   const g = gjuhaPer(d.lenda);
   const para = d.lloji === "parashkollor";
   const L = para ? { ...LABELS.sq, ...PARASHKOLLOR } : LABELS[g];
@@ -44,10 +46,46 @@ ${d.smartlab ? smartRow(5) : ""}
 <tr>${td(`${b(L.f1)}<br><br>${m1} ${L.min}`, 2)}${td(`${b(L.teknika + ": " + esc(f1.teknika))}<br>${esc(f1.pershkrimi)}`, 3)}</tr>
 <tr>${td(`${b(L.f2)}<br><br>${m2} ${L.min}`, 2)}${td(`${b(L.teknika + ": " + esc(f2.teknika))}<br>${b(L.hapi + " 1:")} ${esc(f2.hapi1)}<br>${b(L.hapi + " 2:")} ${esc(f2.hapi2)}`, 3)}</tr>
 <tr>${td(`${b(L.f3)}<br><br>${m3} ${L.min}`, 2)}${td(`${b(L.teknika + ": " + esc(f3.teknika))}<br>${esc(f3.pershkrimi)}`, 3)}</tr>
+${figRow(d, 5)}
 <tr>${td(`${b(L.vler + ":")}<br>${v.map((x, i) => `&nbsp;&nbsp;&nbsp;&nbsp;${b(`${L.niveli} ${i + 1}:`)} ${strip(x)}`).join("<br>")}${p.feedback ? `<br>${b(L.feedback + ":")} ${esc(p.feedback)}` : ""}`, 5)}</tr>
 <tr>${td(`${b(L.dif + ":")}<br>${b(L.avan + ":")} ${esc(dif.avancuar)}<br>${b(akLabel)} ${esc(dif.ak)}`, 5)}</tr>
 <tr>${td(`${b(L.det + ":")}<br>${det.map((x, i) => `${b(`${L.detyra} ${i + 1} (${L.lvl[i] || ""}):`)} ${strip(x)}`).join("<br>")}`, 5)}</tr>
 <tr>${td(`${b(L.ref + ":")}<br>${ref.map((x) => `${esc(x)} ______________________________`).join("<br>")}`, 5)}</tr>
+</table>`;
+}
+
+const KOHA = { sq: ["Ora", "Tema"], en: ["Lesson", "Topic"], it: ["Ora", "Argomento"], fr: ["Heure", "Thème"] };
+
+function build90Html(d) {
+  const g = gjuhaPer(d.lenda);
+  const L = LABELS[g];
+  const [ORA, TEMA] = KOHA[g];
+  const p = d.permbajtja || {};
+  const fz = p.fazat || [];
+  const dif = p.diferencimi || {};
+  const strip = (x) => esc(String(x).replace(/^(Niveli|Level|Livello|Niveau|Detyr[ëe]|Task|Compito|Devoir)[^:]{0,25}:\s*/i, ""));
+  const twoTemas = (a, c) => `• ${b(`${TEMA} 1 (${ORA} I):`)} ${esc(a)}<br>• ${b(`${TEMA} 2 (${ORA} II):`)} ${esc(c)}`;
+  const nivelet = (arr) => (arr || []).slice(0, 3).map((x, i) => `&nbsp;&nbsp;&nbsp;&nbsp;${b(`${L.niveli} ${i + 1}:`)} ${strip(x)}`).join("<br>");
+  const titujt = [[L.f1, 10], [L.f2, 25], [L.f3, 10]];
+  const fazaRow = (i) => {
+    const [t, m] = titujt[i % 3];
+    const f = fz[i] || {};
+    return `<tr>${td(`${b(t)}<br><br>(${TEMA} ${i < 3 ? 1 : 2} / ${ORA} ${i < 3 ? "I" : "II"} – ${m} ${L.min})`, 2)}${td(`${b(L.teknika + ": " + esc(f.teknika))}<br>${esc(f.pershkrimi).replace(/(Hapi \d:|Step \d:|Fase \d:|Étape \d:)/g, "<br>$1")}`, 3)}</tr>`;
+  };
+  return `${TABLE}
+<tr>${td(`${b(L.fusha + ":")} ${esc(FUSHA_SHFAQ[g] || d.fusha)}`)}${td(`${b(L.lenda + ":")} ${esc(LENDA_SHFAQ[g]?.[d.lenda] || d.lendaEmri || d.lenda)}`)}${td(`${b(L.shkalla + ":")} ${esc(d.shkalla)}`)}${td(`${b(L.klasa + ":")} ${esc(d.klasa.replace("Klasa ", ""))}`)}${td(`${b(L.data + ":")} ${esc(d.data)}`)}</tr>
+${d.smartlab ? smartRow(5) : ""}
+<tr>${td(`${b(L.tema + ":")}<br>${twoTemas(p.tema1, p.tema2)}`, 2)}${td(`${b(L.situata + ":")}<br>${twoTemas(p.situata1, p.situata2)}`, 3)}</tr>
+<tr>${td(`${b(L.rez + ":")}<br>• ${b(`${TEMA} 1 (${ORA} I):`)}<br>${list(p.rezultatet1)}<br>• ${b(`${TEMA} 2 (${ORA} II):`)}<br>${list(p.rezultatet2)}`, 3)}${td(`${b(L.fjalet + ":")}<br>${esc(p.fjalet_kyce)}`, 2)}</tr>
+<tr>${td(`${b(L.burimet + ":")} ${esc(p.burimet)}<br>${b(L.tek + ":")} ${esc(p.teknologjia)}`, 3)}${td(`${b(L.lidhja + ":")}<br>${esc(p.lidhja_fushat)}`, 2)}</tr>
+<tr>${td(L.metTitle, 5, "vertical-align:middle;text-align:center;font-weight:bold;background-color:#f2f2f2;")}</tr>
+<tr>${td(L.met, 2, "text-align:center;font-weight:bold;")}${td(L.pershk, 3, "text-align:center;font-weight:bold;")}</tr>
+${[0, 1, 2, 3, 4, 5].map(fazaRow).join("\n")}
+${figRow(d, 5)}
+<tr>${td(`${b(L.vler + ":")}<br>• ${b(`${TEMA} 1 (${ORA} I):`)}<br>${nivelet(p.vleresimi1)}<br>• ${b(`${TEMA} 2 (${ORA} II):`)}<br>${nivelet(p.vleresimi2)}${p.feedback ? `<br>${b(L.feedback + ":")} ${esc(p.feedback)}` : ""}`, 5)}</tr>
+<tr>${td(`${b(L.dif + ":")}<br>• ${b(L.avan + ":")} ${esc(dif.avancuar)}<br>• ${b((d.kaAk ? L.ak : L.mbes) + ":")} ${esc(dif.ak)}`, 5)}</tr>
+<tr>${td(`${b(L.det + ":")}<br>${(p.detyrat || []).map((x, i) => `• ${b(`${L.detyra} ${i + 1} (${L.lvl[i] || ""}):`)} ${strip(x)}`).join("<br>")}`, 5)}</tr>
+<tr>${td(`${b(L.ref + ":")}<br>${(p.refleksioni || []).map((x) => `• ${esc(x)} ______________________________`).join("<br>")}`, 5)}</tr>
 </table>`;
 }
 

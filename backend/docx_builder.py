@@ -35,7 +35,7 @@ def _style_flags(el, bold, italic):
     return bold, italic
 
 
-def _fill(cell_el, cell, size, center):
+def _fill(cell_el, cell, size, center, img_loader=None):
     cell.paragraphs[0].text = ""
     state = {"p": cell.paragraphs[0]}
 
@@ -50,6 +50,13 @@ def _fill(cell_el, cell, size, center):
                     _set_font(state["p"].add_run(txt if state["p"].runs else txt.lstrip()), size, bold, italic)
             elif ch.name == "br":
                 new_par()
+            elif ch.name == "img":
+                m = re.search(r"/figura/([0-9a-f]+)", ch.get("src", ""))
+                if m and img_loader:
+                    try:
+                        state["p"].add_run().add_picture(io.BytesIO(img_loader(m.group(1))), width=Mm(55))
+                    except Exception:
+                        pass
             else:
                 b, i = _style_flags(ch, bold, italic)
                 if ch.name in BLOCK and state["p"].runs:
@@ -64,7 +71,7 @@ def _fill(cell_el, cell, size, center):
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
-def build_docx(html: str, font_size: int, header_text: str) -> bytes:
+def build_docx(html: str, font_size: int, header_text: str, img_loader=None) -> bytes:
     doc = Document()
     sec = doc.sections[0]
     sec.page_width, sec.page_height = Mm(210), Mm(297)
@@ -93,7 +100,7 @@ def build_docx(html: str, font_size: int, header_text: str) -> bytes:
             style = (td.get("style") or "").replace(" ", "").lower()
             if "background-color:#f2f2f2" in style:
                 _shade(cell, "F2F2F2")
-            _fill(td, cell, font_size, "text-align:center" in style)
+            _fill(td, cell, font_size, "text-align:center" in style, img_loader)
             col += span
     buf = io.BytesIO()
     doc.save(buf)

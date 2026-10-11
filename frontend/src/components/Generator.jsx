@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Sparkles, Archive, LogOut, RotateCcw, Camera, MonitorSmartphone } from "lucide-react";
+import { Sparkles, Archive, LogOut, RotateCcw, Camera, MonitorSmartphone, Clock, Image as ImageIcon } from "lucide-react";
 import { klasatPer, KURRIKULAT, LLOJET_AK, licApi, errMsg, eshteFikse, paketaEmri } from "../lib/api";
 import { KolektiveFields, blankKlasat } from "./KolektiveFields";
 import { AkFields } from "./AkFields";
@@ -12,14 +12,21 @@ import { InstallButton } from "./InstallButton";
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
 const blank = (lenda, n) => {
   const kl = klasatPer(n);
-  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), dokumenti: "ditor", periudha: "", shenime: "", ditelindja: "", pozicioni: "Mësues ndihmës" };
+  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), ore90: false, tema2: "", figura: false, dokumenti: "ditor", periudha: "", shenime: "", ditelindja: "", pozicioni: "Mësues ndihmës" };
 };
 
 export const Generator = ({ user, onLogout }) => {
   const n = user.numriLendeve;
   const kolektive = n === 14, akP = n === 16;
   const [f, setF] = useState(blank(user.lendet[0], n));
-  const javor = akP && f.dokumenti !== "ditor";
+  const javor = akP && !["ditor", "ditor2"].includes(f.dokumenti);
+  const lejo90 = !kolektive && !akP && n !== 15;
+  const toggle = (k) => () => setF({ ...f, [k]: !f[k] });
+  const Tg = ({ k, icon: I, label, id }) => (
+    <button type="button" onClick={toggle(k)} className={`btn-ghost text-xs border ${f[k] ? "border-accent bg-accent/5 text-accent-dark" : "border-ink/15"}`} data-testid={id}>
+      <I size={14} /> {label}: {f[k] ? "PO" : "JO"}
+    </button>
+  );
   const [images, setImages] = useState([]);
   const [meFoto, setMeFoto] = useState(false);
   const [perdorur, setPerdorur] = useState(user.perdorur || 0);
@@ -35,7 +42,7 @@ export const Generator = ({ user, onLogout }) => {
     if (!javor && !kaFoto && rreshta.some((k) => !k.tema.trim())) return toast.error("Ngarkoni foto të librit ose shkruani temën.");
     setBusy(true);
     try {
-      const { data } = await licApi().post("/ditar/generate", { ...f, images: meFoto ? images : [] });
+      const { data } = await licApi().post("/ditar/generate", { ...f, ore90: f.ore90 && lejo90, images: meFoto ? images : [] });
       setDitar(data);
       setPerdorur((x) => x + 1);
       setF((x) => ({ ...x, tema: data.tema }));
@@ -81,9 +88,9 @@ export const Generator = ({ user, onLogout }) => {
               <button type="button" onClick={() => setMeFoto(!meFoto)} className={`btn-ghost text-xs border ${meFoto ? "border-accent text-accent-dark" : "border-ink/15"}`} data-testid="toggle-photos-btn">
                 <Camera size={14} /> {meFoto ? "Hiq fotot" : "Dua të shtoj foto"}
               </button>
-              <button type="button" onClick={() => setF({ ...f, smartlab: !f.smartlab })} className={`btn-ghost text-xs border ${f.smartlab ? "border-accent bg-accent/5 text-accent-dark" : "border-ink/15"}`} data-testid="smartlab-toggle-btn">
-                <MonitorSmartphone size={14} /> {f.smartlab ? "Ora SMARTLAB: PO" : "Ora SMARTLAB: JO"}
-              </button>
+              {lejo90 && <Tg k="ore90" icon={Clock} label="Ditar 90 min" id="ditar90-toggle-btn" />}
+              <Tg k="smartlab" icon={MonitorSmartphone} label="Ora SMARTLAB" id="smartlab-toggle-btn" />
+              {!javor && !akP && <Tg k="figura" icon={ImageIcon} label="Figurë ndihmëse" id="figura-toggle-btn" />}
             </div>
             {meFoto && <div className="mt-4"><PhotoUpload images={images} setImages={setImages} /></div>}
           </div>
@@ -109,8 +116,13 @@ export const Generator = ({ user, onLogout }) => {
             <label><span className="lbl">Viti shkollor</span><input className="inp" value={f.vitiShkollor} onChange={set("vitiShkollor")} data-testid="viti-input" /></label>
           </div>
           {!kolektive && (
-          <label className="block"><span className="lbl">{javor ? "Objektivat nga PEI" : akP ? "Tema / objektivi nga PEI" : "Tema mësimore"} <span className="normal-case font-normal">{javor ? "(opsionale)" : "(opsionale nëse ngarkoni foto)"}</span></span>
+          <label className="block"><span className="lbl">{javor ? "Objektivat nga PEI" : akP ? "Tema / objektivi nga PEI" : f.ore90 && lejo90 ? "Tema 1 (Ora I)" : "Tema mësimore"} <span className="normal-case font-normal">{javor ? "(opsionale)" : "(opsionale nëse ngarkoni foto)"}</span></span>
             <input className="inp" placeholder="AI e nxjerr nga fotot nëse e lini bosh" value={f.tema} onChange={set("tema")} data-testid="tema-input" />
+          </label>
+          )}
+          {f.ore90 && lejo90 && (
+          <label className="block"><span className="lbl">Tema 2 (Ora II) <span className="normal-case font-normal">(opsionale)</span></span>
+            <input className="inp" placeholder="Bosh = vazhdimi i temës 1 ose nga fotot" value={f.tema2} onChange={set("tema2")} data-testid="tema2-input" />
           </label>
           )}
 

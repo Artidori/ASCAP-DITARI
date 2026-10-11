@@ -80,3 +80,20 @@ export function buildAkTremujorHtml(d) {
 <tr>${td(`${b("Aktivitete të sugjerueshme/materiale për prindërit për të arritur objektivat:")}<br>${list(p.aktivitete_prinderit)}`, 2)}</tr>
 </table>`;
 }
+
+export function buildAk2Html(d) {
+  const p = d.permbajtja || {};
+  const rez = "Rezultatet e të nxënit të kompetencave të fushës sipas temës mësimore:";
+  return `${TABLE}
+<tr>${td(`${b("Model ditari")} &nbsp;&nbsp;&nbsp; ${b("Data:")} ${esc(d.data)}`, 6, "text-align:right;")}</tr>
+<tr>${td(`${b("Fusha:")} ${esc(d.fusha)}`)}${td(`${b("Lënda:")} ${esc(d.lendaEmri || d.lenda)}`)}${td(`${b("Nxënësi:")} ${esc(d.akInitials)}${d.llojiAk ? ` (${esc(d.llojiAk)})` : ""}`, 2)}${td(`${b("Ora:")} _____`)}${td(`${b("Klasa:")} ${esc(romake(d.klasa))}`)}</tr>
+${d.smartlab ? smartRow(6) : ""}
+<tr>${td(`${b("Tema mësimore:")} ${esc(d.tema)}`, 3)}${td(`${b("Situata e të nxënit:")} ${esc(p.situata)}`, 3)}</tr>
+<tr>${td(`${b(rez)} ${esc(p.rezultatet)}`, 3)}${td(`${b("Fjalë kyçe:")} ${esc(p.fjalet_kyce)}`, 3)}</tr>
+<tr>${td(`${b(rez)} ${esc(p.rezultatet_pei)}`, 3)}${td(`${b("Metodologjia:")} ${esc(p.metodologjia)}`, 3)}</tr>
+<tr>${td(`${b("Burimet e informacionit dhe mjete:")} ${esc(p.burimet)}`, 3)}${td(`${b("Lidhja me lëndë/ fusha të tjera:")} ${esc(p.lidhja)}`, 3)}</tr>
+<tr>${td(`${b("Organizimi i orës së mësimit:")}<br>${b("Veprimtari paraprake:")} ${esc(p.veprimtari_paraprake)}<br>${(p.hapat || []).map((h, i) => `${b(`Hapi ${i + 1}:`)} ${esc(String(h).replace(/^Hapi\s*\d+\s*[:.-]?\s*/i, ""))}`).join("<br>")}`, 6)}</tr>
+<tr>${td(`${b("Vlerësimi i nxënësit:")} ${esc(p.vleresimi)}`, 6)}</tr>
+<tr>${td(`${b("Detyrë shtëpie:")} ${esc(p.detyre_shtepie)}`, 6)}</tr>
+</table>`;
+}
