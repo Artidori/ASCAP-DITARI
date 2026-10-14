@@ -1,4 +1,4 @@
-import { esc, td, b, center, smartRow, list, TABLE } from "./htmlUtil";
+import { esc, td, b, center, smartRow, list, TABLE, figRow } from "./htmlUtil";
 
 const R = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 const romake = (k) => R[parseInt(String(k).replace(/\D/g, ""), 10)] || k;
@@ -95,5 +95,62 @@ ${d.smartlab ? smartRow(6) : ""}
 <tr>${td(`${b("Organizimi i orës së mësimit:")}<br>${b("Veprimtari paraprake:")} ${esc(p.veprimtari_paraprake)}<br>${(p.hapat || []).map((h, i) => `${b(`Hapi ${i + 1}:`)} ${esc(String(h).replace(/^Hapi\s*\d+\s*[:.-]?\s*/i, ""))}`).join("<br>")}`, 6)}</tr>
 <tr>${td(`${b("Vlerësimi i nxënësit:")} ${esc(p.vleresimi)}`, 6)}</tr>
 <tr>${td(`${b("Detyrë shtëpie:")} ${esc(p.detyre_shtepie)}`, 6)}</tr>
+</table>`;
+}
+
+const VIJA = "____________________________________________";
+
+export function buildFleteHtml(d) {
+  const p = d.permbajtja || {};
+  const seks = (p.seksionet || []).map((sk) => `<tr>${td(b(esc(sk.klasa)), 1, "background-color:#f2f2f2;")}</tr>
+${(sk.ushtrimet || []).map((u, i) => `<tr>${td(`${b(`${i + 1}. (${esc(u.niveli)})`)} ${esc(u.kerkesa).replace(/\n/g, "<br>")}${"<br>" + Array.from({ length: Math.min(Number(u.rreshta) || 0, 6) }, () => VIJA).join("<br>")}`)}</tr>`).join("")}`).join("");
+  return `${TABLE}
+<tr>${td(`${b("FLETË PUNE")} — ${esc(p.titulli || d.tema)}<br>${b("Lënda:")} ${esc(d.lendaEmri || d.lenda)} &nbsp; ${b("Klasa:")} ${esc(d.klasa)} &nbsp; ${b("Data:")} ${esc(d.data)}<br>${b("Emri dhe mbiemri i nxënësit:")} ${VIJA}`, 1, "text-align:center;")}</tr>
+<tr>${td(`${b("Udhëzime:")} ${esc(p.udhezime)}`)}</tr>
+${seks}
+</table>`;
+}
+
+const MENYRAT = [["fizike_plote", "Me ndihmë fizike të plotë"], ["fizike_pjesshme", "Me ndihmë fizike të pjesshme"], ["verbale", "Me ndihmë verbale"], ["nxitje", "Me nxitje"], ["pavarur", "I/E pavarur"]];
+
+export function buildAkEcuriaHtml(d) {
+  const p = d.permbajtja || {};
+  const mujor = d.lloji === "ak_mujor2";
+  const m = p.menyra || {};
+  const firma = (rol) => `${b(rol)} Emër ____________ Mbiemër ____________ Firmë ____________`;
+  return `${TABLE}
+<tr>${td(`${b("SHKOLLA:")} ${esc(d.shkolla) || VIJA}`, 2)}</tr>
+<tr>${td(`Format ${mujor ? "mujor" : "javor"} vlerësimi për ecurinë e PEI`, 2, center + "background-color:#f2f2f2;")}</tr>
+<tr>${td(`${b("Data:")} ${esc(d.periudha || d.data)}`)}${td(`${b("Diagnoza:")} ${esc(d.llojiAk)}`)}</tr>
+<tr>${td(`${b("Nxënësi:")} ${esc(d.akInitials)}`)}${td(`${b("Klasa:")} ${esc(romake(d.klasa))}`)}</tr>
+<tr>${td(`${b("Ecuria mësimore sipas objektivave mësimore:")}<br>${esc(p.ecuria)}`, 2)}</tr>
+<tr>${td(`${b("Mënyra e realizimit të objektivave:")}<br>${MENYRAT.map(([k, t], i) => `${i + 1}. ${b(t + ":")} ${esc(m[k] || "-")}`).join("<br>")}`, 2)}</tr>
+<tr>${td(`${b("Nëse objektivat nuk janë arritur cilat janë disa nga arsyet e mundshme:")}<br>${(p.arsyet || []).map((x, i) => `${i + 1}. ${esc(x)}`).join("<br>")}`, 2)}</tr>
+<tr>${td(`${b(`Problematikat e shfaqura gjatë ${mujor ? "muajit" : "javës"}:`)} ${esc(p.problematikat)}`, 2)}</tr>
+<tr>${td(`${firma(mujor ? "Mësuese ndihmëse:" : "Punoi Mësuese ndihmëse:")}${mujor ? "" : `<br>${firma("Mora informacionin Prindi:")}`}`, 2)}</tr>
+</table>`;
+}
+
+export function buildPara2Html(d) {
+  const p = d.permbajtja || {};
+  const lendet = p.lendet || [];
+  const v = p.veprimtarite || [];
+  return `${TABLE}
+<tr>${td("AKTIVITET DITOR", 3, center + "background-color:#f2f2f2;")}</tr>
+<tr>${td(`${b("Data:")} ${esc(d.data)} &nbsp; ${b("Grupi:")} ${esc(d.klasa)}<br>${b("Metodat:")} ${esc((p.metodat || []).join(", "))}`, 3)}</tr>
+${d.smartlab ? smartRow(3) : ""}
+<tr>${td("Planifikimi i aktivitetit ditor", 3, center)}</tr>
+<tr>${td(b("Tema ditore"))}${td(esc(d.tema), 2)}</tr>
+<tr>${td(b("Lëndët"))}${td(b("Temat sipas lëndëve"))}${td(b("Rezultatet e të nxënit"))}</tr>
+${lendet.map((l) => `<tr>${td(b(esc(l.lenda)))}${td(esc(l.tema))}${td(list(l.rezultatet))}</tr>`).join("")}
+<tr>${td(b("Fjalët kyçe"))}${td(esc(p.fjalet_kyce), 2)}</tr>
+<tr>${td(b("Burimet, materialet dhe mjetet didaktike"))}${td(esc(p.burimet), 2)}</tr>
+<tr>${td(`${b("Fillimi i veprimtarisë mësimore-edukative – Takimi i mëngjesit:")}<br>${esc(p.takimi_mengjesit)}`, 3)}</tr>
+<tr>${td("Ecuria ditore – Metodologjia dhe veprimtaritë mësuese – fëmijë", 3, center + "background-color:#f2f2f2;")}</tr>
+<tr>${td(b("Veprimtaritë"))}${td(b("Mësuesja"))}${td(b("Fëmijët"))}</tr>
+${v.map((x, i) => `<tr>${td(b(`Veprimtaria ${i + 1}:${lendet[i] ? `<br>(${esc(lendet[i].lenda)})` : ""}`))}${td(esc(x.mesuesja))}${td(esc(x.femijet))}</tr>`).join("")}
+${figRow(d, 3)}
+<tr>${td(`${b("Vlerësimi i punës së fëmijëve:")}<br>${esc(p.vleresimi)}`, 3)}</tr>
+<tr>${td(esc(p.aktivitet_lire), 3)}</tr>
 </table>`;
 }

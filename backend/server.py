@@ -16,7 +16,8 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from ditar_ai import (FUSHA, PAKETA, AK_LENDET, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
-                      prompt_standard, prompt_kolektive, prompt_ak, prompt_ak_javor, prompt_ak_tremujor, prompt_90, prompt_ak2, FIGURA)
+                      prompt_standard, prompt_kolektive, prompt_ak, prompt_90, prompt_ak2, FIGURA,
+                      prompt_flete, prompt_ak_ecuria, prompt_para2, GRUPET)
 from media import put_object, get_object, generate_figure, init_storage, APP_NAME
 
 ROOT_DIR = Path(__file__).parent
@@ -142,8 +143,11 @@ class GenerateReq(BaseModel):
     dokumenti: str = "ditor"
     periudha: str = ""
     shenime: str = ""
-    ditelindja: str = ""
-    pozicioni: str = ""
+    shkolla: str = ""
+    kerkesa: str = ""
+    flete: bool = False
+    grupi: str = "perzier"
+    lendetPara: List[str] = []
     ore90: bool = False
     tema2: str = ""
     figura: bool = False
@@ -368,15 +372,18 @@ def emri_lende(lenda: str, kurr: str) -> str:
 
 
 async def run_ai(prompt: str, images: List[str]) -> dict:
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=str(uuid.uuid4()), system_message=SYSTEM) \
-        .with_model("gemini", "gemini-3-flash-preview")
     imgs = [ImageContent(image_base64=i.split(",", 1)[-1]) for i in images]
-    try:
-        resp = await chat.send_message(UserMessage(text=prompt, file_contents=imgs or None))
-        return parse_json(resp if isinstance(resp, str) else str(resp))
-    except Exception as e:
-        logger.exception("AI error")
-        raise HTTPException(502, f"Analiza me AI dështoi. Provoni përsëri. ({str(e)[:120]})")
+    keys = [EMERGENT_LLM_KEY] + [k for k in (os.environ.get("GEMINI_KEY_2"), os.environ.get("GEMINI_KEY_3")) if k]
+    err = None
+    for key in keys:
+        try:
+            chat = LlmChat(api_key=key, session_id=str(uuid.uuid4()), system_message=SYSTEM).with_model("gemini", "gemini-3-flash-preview")
+            resp = await chat.send_message(UserMessage(text=prompt, file_contents=imgs or None))
+            return parse_json(resp if isinstance(resp, str) else str(resp))
+        except Exception as e:
+            err = e
+            logger.exception("AI error with key #%d", keys.index(key) + 1)
+    raise HTTPException(502, f"Analiza me AI dështoi. Provoni përsëri. ({str(err)[:120]})")
 
 
 async def make_figure(fig) -> Optional[dict]:
@@ -405,6 +412,38 @@ async def figura(fid: str):
     return Response(content=get_object(rec["storage_path"]), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000"})
 
 
+def kolektive_items(body, lic, lejuara) -> list:
+    if not 2 <= len(body.klasat) <= 3:
+        raise HTTPException(400, "Zgjidhni 2 ose 3 klasa.")
+    kl = sorted(body.klasat, key=lambda k: klasa_nr(k.klasa))
+    if len({k.klasa for k in kl}) != len(kl):
+        raise HTTPException(400, "Zgjidhni klasa të ndryshme.")
+    items = []
+    for k in kl:
+        if k.lenda not in lic["lendet"] or k.klasa not in lejuara:
+            raise HTTPException(403, "Lënda ose klasa nuk përfshihet në paketën Klasa Kolektive.")
+        if not body.images and not k.tema.strip():
+            raise HTTPException(400, f"Shkruani temën për {k.klasa} ose ngarkoni foto.")
+        items.append({"klasa": k.klasa, "lenda": k.lenda, "emri": emri_lende(k.lenda, k.lendaKurrikules), "tema": k.tema.strip()})
+    return items
+
+
+def kolektive_fields(items) -> dict:
+    return {"klasatDitar": items, "lenda": " / ".join(dict.fromkeys(k["lenda"] for k in items)),
+            "lendaEmri": " / ".join(dict.fromkeys(k["emri"] for k in items)),
+            "fusha": " / ".join(dict.fromkeys(FUSHA.get(k["lenda"], "Shkencat e natyrës") for k in items)),
+            "shkalla": " dhe ".join(dict.fromkeys(shkalla(k["klasa"]) for k in items)),
+            "klasa": "Klasa " + "-".join(ROMAKE[klasa_nr(k["klasa"])] for k in items),
+            "tema": " | ".join(k["tema"] for k in items)}
+
+
+def para_lendet(body, lic) -> list:
+    lendet = list(dict.fromkeys(body.lendetPara))
+    if not 1 <= len(lendet) <= 6 or any(x not in lic["lendet"] for x in lendet):
+        raise HTTPException(400, "Zgjidhni 1 deri në 6 lëndë të parashkollorit.")
+    return lendet
+
+
 @api.post("/ditar/generate")
 async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
     paketa = lic["numriLendeve"]
@@ -414,69 +453,77 @@ async def generate(body: GenerateReq, lic: dict = Depends(require_license)):
     if len(body.images) > 6:
         raise HTTPException(400, "Maksimumi 6 foto për një ditar.")
     ak = f"Ka nxënës me AK (inicialet: {body.akInitials or 'pa inicialë'}) – përfshi masa konkrete mbështetëse." if body.kaAk else "Nuk ka nxënës me AK."
+    kerkesa = f"\nKËRKESË SPECIFIKE E MËSUESIT (zbatoje patjetër): {body.kerkesa.strip()[:800]}" if body.kerkesa.strip() else ""
     base = {"id": str(uuid.uuid4()), "kodi": lic["kodi"], "mesuesi": f"{lic['emri']} {lic['mbiemri']}",
             "data": body.data, "vitiShkollor": body.vitiShkollor, "kaAk": body.kaAk, "akInitials": body.akInitials,
-            "smartlab": body.smartlab, "html": None, "krijuar": now_iso()}
+            "smartlab": body.smartlab, "html": None, "krijuar": now_iso(), "figura": None}
+    ore90 = body.ore90 and paketa not in (14, 15, 16)
+    raport = body.dokumenti if paketa == 16 and body.dokumenti in ("javor", "mujor") else ""
+    n_img = len(body.images)
 
     if paketa == 14:
-        if not 2 <= len(body.klasat) <= 3:
-            raise HTTPException(400, "Zgjidhni 2 ose 3 klasa.")
-        kl = sorted(body.klasat, key=lambda k: klasa_nr(k.klasa))
-        if len({k.klasa for k in kl}) != len(kl):
-            raise HTTPException(400, "Zgjidhni klasa të ndryshme.")
-        items = []
-        for k in kl:
-            if k.lenda not in lic["lendet"] or k.klasa not in lejuara:
-                raise HTTPException(403, "Lënda ose klasa nuk përfshihet në paketën Klasa Kolektive.")
-            if not body.images and not k.tema.strip():
-                raise HTTPException(400, f"Shkruani temën për {k.klasa} ose ngarkoni foto.")
-            items.append({"klasa": k.klasa, "lenda": k.lenda, "emri": emri_lende(k.lenda, k.lendaKurrikules), "tema": k.tema.strip()})
-        content = await run_ai(prompt_kolektive(items, ak, len(body.images), body.smartlab), body.images)
-        for i, k in enumerate(items):
-            k["tema"] = k["tema"] or ((content.get("klasat") or [{}] * 3)[i] or {}).get("tema", "")
-        ditar = {**base, "lloji": "kolektive", "klasatDitar": items,
-                 "lenda": " / ".join(dict.fromkeys(k["lenda"] for k in items)),
-                 "lendaEmri": " / ".join(dict.fromkeys(k["emri"] for k in items)),
-                 "fusha": " / ".join(dict.fromkeys(FUSHA.get(k["lenda"], "Shkencat e natyrës") for k in items)),
-                 "shkalla": " dhe ".join(dict.fromkeys(shkalla(k["klasa"]) for k in items)),
-                 "klasa": "Klasa " + "-".join(ROMAKE[klasa_nr(k["klasa"])] for k in items),
-                 "tema": " | ".join(k["tema"] for k in items), "permbajtja": content}
+        items = kolektive_items(body, lic, lejuara)
+    elif paketa == 15:
+        if not body.images and not body.tema.strip():
+            raise HTTPException(400, "Shkruani temën ditore ose ngarkoni foto.")
+        lendet = para_lendet(body, lic)
     else:
         if body.lenda not in lic["lendet"]:
             raise HTTPException(403, "Kjo lëndë nuk përfshihet në licencën tuaj.")
         if lejuara and body.klasa not in lejuara:
             raise HTTPException(403, f"Paketa {PAKETA[paketa]['emri']} nuk vlen për {body.klasa}.")
-        raport = body.dokumenti if paketa == 16 and body.dokumenti in ("javor", "tremujor") else ""
-        javor = bool(raport)
-        if not javor and not body.images and not body.tema.strip():
+        if not raport and not body.images and not body.tema.strip():
             raise HTTPException(400, "Ngarkoni foto të librit ose shkruani temën mësimore.")
         emri = emri_lende(body.lenda, body.lendaKurrikules)
-        ore90 = body.ore90 and paketa not in (14, 15, 16)
-        if paketa == 16 and body.dokumenti == "ditor2":
-            prompt = prompt_ak2(emri, body.klasa, body.tema, body.llojiAk, len(body.images), body.smartlab)
-        elif ore90:
-            prompt = prompt_90(emri, body.lenda, body.klasa, body.tema, body.tema2, ak, len(body.images), body.smartlab)
-        elif paketa == 16 and body.dokumenti == "tremujor":
-            prompt = prompt_ak_tremujor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime)
-        elif paketa == 16 and body.dokumenti == "javor":
-            prompt = prompt_ak_javor(emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime, len(body.images))
-        elif paketa == 16:
-            prompt = prompt_ak(emri, body.klasa, body.tema, body.llojiAk, body.koha, len(body.images), body.smartlab)
+
+    if body.flete:
+        if paketa == 14:
+            seks, extra = items, kolektive_fields(items)
+        elif paketa == 15:
+            seks = [{"klasa": GRUPET.get(body.grupi, GRUPET["perzier"]), "emri": ", ".join(lendet), "tema": body.tema.strip()}]
+            extra = {"lenda": "Parashkollor", "lendaEmri": ", ".join(lendet), "klasa": seks[0]["klasa"], "tema": body.tema.strip()}
         else:
-            prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, len(body.images), body.smartlab, paketa == 15)
-        me_figure = body.figura and not javor and paketa != 16
-        content = await run_ai(prompt + (FIGURA if me_figure else ""), body.images)
-        lloji = "ak2" if paketa == 16 and body.dokumenti == "ditor2" else "standard90" if ore90 else \
-            f"ak_{raport}" if javor else {16: "ak", 15: "parashkollor"}.get(paketa, "standard")
+            temat = " dhe ".join(filter(None, [body.tema.strip(), body.tema2.strip() if ore90 else ""]))
+            seks = [{"klasa": body.klasa, "emri": emri, "tema": temat}]
+            extra = {"lenda": body.lenda, "lendaEmri": emri, "klasa": body.klasa, "tema": temat}
+        para = "Fëmijët janë parashkollorë: ushtrime me vizatim, ngjyrosje, lidhje me vija, rrethim figurash, numërim objektesh." if paketa == 15 else ""
+        content = await run_ai(prompt_flete(seks, body.lenda, n_img, para) + kerkesa, body.images)
+        extra["tema"] = extra["tema"] or content.get("titulli", "")
+        ditar = {**base, **extra, "lloji": "flete", "permbajtja": content}
+    elif paketa == 14:
+        content = await run_ai(prompt_kolektive(items, ak, n_img, body.smartlab) + kerkesa, body.images)
+        for i, k in enumerate(items):
+            k["tema"] = k["tema"] or ((content.get("klasat") or [{}] * 3)[i] or {}).get("tema", "")
+        ditar = {**base, "lloji": "kolektive", **kolektive_fields(items), "permbajtja": content}
+    elif paketa == 15:
+        prompt = prompt_para2(body.tema, lendet, body.grupi, n_img, body.smartlab) + kerkesa
+        content = await run_ai(prompt + (FIGURA if body.figura else ""), body.images)
+        base["figura"] = await make_figure(content.get("figura")) if body.figura else None
+        ditar = {**base, "lloji": "parashkollor2", "lenda": "Parashkollor", "lendaEmri": ", ".join(lendet), "lendetPara": lendet,
+                 "grupi": body.grupi, "klasa": GRUPET.get(body.grupi, GRUPET["perzier"]), "tema": body.tema.strip(), "permbajtja": content}
+    else:
+        if raport:
+            prompt = prompt_ak_ecuria(raport, emri, body.klasa, body.llojiAk, body.periudha, body.tema, body.shenime)
+        elif paketa == 16 and body.dokumenti == "ditor2":
+            prompt = prompt_ak2(emri, body.klasa, body.tema, body.llojiAk, n_img, body.smartlab)
+        elif paketa == 16:
+            prompt = prompt_ak(emri, body.klasa, body.tema, body.llojiAk, body.koha, n_img, body.smartlab)
+        elif ore90:
+            prompt = prompt_90(emri, body.lenda, body.klasa, body.tema, body.tema2, ak, n_img, body.smartlab)
+        else:
+            prompt = prompt_standard(emri, body.lenda, body.klasa, body.tema, ak, n_img, body.smartlab, False)
+        me_figure = body.figura and paketa != 16
+        content = await run_ai(prompt + kerkesa + (FIGURA if me_figure else ""), body.images)
+        lloji = f"ak_{raport}2" if raport else "ak2" if paketa == 16 and body.dokumenti == "ditor2" else "ak" if paketa == 16 \
+            else "standard90" if ore90 else "standard"
         base["figura"] = await make_figure(content.get("figura")) if me_figure else None
-        ditar = {**base, "lloji": lloji,
-                 "periudha": body.periudha,
+        tema = (f"Raport {raport} {body.periudha}".strip() if raport else
+                " | ".join(filter(None, [body.tema.strip() or content.get("tema1", ""), body.tema2.strip() or content.get("tema2", "")])) if ore90
+                else body.tema.strip() or content.get("tema", ""))
+        ditar = {**base, "lloji": lloji, "periudha": body.periudha, "shkolla": body.shkolla,
                  "lenda": body.lenda, "lendaEmri": emri, "fusha": FUSHA.get(body.lenda, "Shkencat e natyrës"),
                  "shkalla": shkalla(body.klasa), "klasa": body.klasa, "llojiAk": body.llojiAk, "koha": body.koha,
-                 "ditelindja": body.ditelindja, "pozicioni": body.pozicioni,
-                 "tema": f"Raport {raport} {body.periudha}".strip() if javor else
-                 " | ".join(filter(None, [body.tema.strip() or content.get("tema1", ""), body.tema2.strip() or content.get("tema2", "")])) if ore90 else
-                 (body.tema.strip() or content.get("tema", "")), "permbajtja": content}
+                 "tema": tema, "permbajtja": content}
     await db.ditare.insert_one({**ditar})
     await db.licenses.update_one({"kodi": lic["kodi"]}, {"$inc": {"gjeneruar": 1}})
     return ditar

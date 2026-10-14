@@ -263,6 +263,72 @@ Kthe JSON me këtë strukturë saktësisht:
 {SCHEMA_AK2}"""
 
 
+SCHEMA_FLETE = """{
+ "titulli": "titulli i fletës së punës",
+ "udhezime": "udhëzim i shkurtër për nxënësin",
+ "seksionet": [{"klasa": "Klasa ...", "ushtrimet": [{"niveli": "Bazë/Mesatar/Avancuar", "kerkesa": "teksti i plotë i ushtrimit, me të dhënat/fjalitë/numrat konkretë", "rreshta": 3}]}]
+}"""
+
+
+def prompt_flete(seksionet, lenda, n_img, kerkesa_para=""):
+    lista = "\n".join(f"- {k['klasa']} – Lënda: {k['emri']} – Tema: {k['tema'] or '(nga fotot)'}" for k in seksionet)
+    return f"""Harto një FLETË PUNE për nxënësit me ushtrime të mjaftueshme (8-10 ushtrime për çdo seksion), të shkallëzuara sipas
+niveleve (Bazë, Mesatar, Avancuar), të përshtatura me moshën dhe klasën, mbi të njëjtën temë si ditari:
+{lista}
+{kerkesa_para}
+{foto_rule(n_img)}
+Ushtrimet duhet të jenë të plota dhe gati për t'u zgjidhur (me fjalitë, numrat, tekstet konkrete), të larmishme (plotëso, rretho,
+lidh, përgjigju, zgjidh, shkruaj). "rreshta" = sa rreshta bosh duhen për përgjigjen (0-6). Lista "seksionet" ka {len(seksionet)} element(e).{lang_rule(lenda)}
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_FLETE}"""
+
+
+SCHEMA_ECURIA = """{
+ "ecuria": "ecuria mësimore sipas objektivave mësimore (3-5 fjali)",
+ "menyra": {"fizike_plote": "...", "fizike_pjesshme": "...", "verbale": "...", "nxitje": "...", "pavarur": "..."},
+ "arsyet": ["arsye e mundshme 1", "arsye e mundshme 2"],
+ "problematikat": "problematikat e shfaqura gjatë periudhës"
+}"""
+
+
+def prompt_ak_ecuria(lloji_raportit, emri_lendes, klasa, diagnoza, periudha, objektivat, shenime):
+    return f"""Plotëso FORMATIN {lloji_raportit.upper()} TË VLERËSIMIT PËR ECURINË E PEI për një nxënës me aftësi të kufizuara (mësuese ndihmëse).
+Diagnoza: {diagnoza or 'e papërcaktuar'}; {klasa}; Lënda/fusha: {emri_lendes or 'e përgjithshme'}; Periudha: {periudha or '-'}.
+Objektivat e PEI: "{objektivat or '(propozo sipas diagnozës dhe klasës)'}".
+Shënimet e mësueses: "{shenime or '(nuk ka; shkruaj në mënyrë të përgjithshme dhe të kujdesshme)'}".
+Për çdo mënyrë realizimi (me ndihmë fizike të plotë, me ndihmë fizike të pjesshme, me ndihmë verbale, me nxitje, i/e pavarur)
+shkruaj shkurt cilat objektiva/aktivitete u realizuan në atë mënyrë (ose "-" nëse asnjë).
+Veta e tretë njëjës, mënyra dëftore për nxënësin. Ji profesional.
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_ECURIA}"""
+
+
+GRUPET = {"I": "Grupi I (3-4 vjeç)", "II": "Grupi II (4-5 vjeç)", "III": "Grupi III (5-6 vjeç)", "perzier": "Grup i përzier (Gr. I, II dhe III)"}
+SCHEMA_PARA = """{
+ "metodat": ["Bisedë", "..."],
+ "lendet": [{"lenda": "...", "tema": "tema sipas lëndës", "rezultatet": ["4-6 rezultate, secili me grupin në fund, p.sh. 'Emërton kafshët e fermës. Gr.I/II/III'"]}],
+ "fjalet_kyce": "fjalë të ndara me pikëpresje",
+ "burimet": "burimet, materialet dhe mjetet didaktike",
+ "takimi_mengjesit": "fillimi i veprimtarisë - takimi i mëngjesit (këngë, bisedë, lojë), në vetën e parë",
+ "veprimtarite": [{"mesuesja": "çfarë bën mësuesja (veta e parë, e detajuar)", "femijet": "Qendra e ...: çfarë bëjnë fëmijët, sipas grupeve"}],
+ "vleresimi": "vlerësimi i punës së fëmijëve",
+ "aktivitet_lire": "aktivitet i lirë dhe përshëndetja e fëmijëve"
+}"""
+
+
+def prompt_para2(tema, lendet, grupi, n_img, smartlab):
+    return f"""Harto AKTIVITETIN DITOR të arsimit parashkollor (sipas programit ASCAP) me temë ditore: "{tema or '(nga fotot)'}".
+Grupi: {GRUPET.get(grupi, GRUPET['perzier'])}. Lëndët e ditës (sipas radhës): {", ".join(lendet)}.
+Për çdo lëndë jep temën sipas lëndës dhe rezultatet e të nxënit të shënuara me grupin (Gr.I, Gr.II, Gr.III ose kombinime;
+nëse grupi nuk është i përzier, përdor vetëm atë grup). "veprimtarite" ka saktësisht {len(lendet)} elemente, një për çdo lëndë sipas radhës.
+Veprimtaritë zhvillohen përmes lojës, këngës, bisedës dhe qendrave (lexim-shkrimi, shkencës, artit, lojës, matematikës).
+{foto_rule(n_img)}
+Rezultatet në vetën e tretë njëjës (p.sh. "Emërton...", "Numëron..."); veprimtaritë e mësueses në vetën e parë ("Prezantoj...", "U kërkoj fëmijëve...").
+{SMARTLAB if smartlab else ''}
+Kthe JSON me këtë strukturë saktësisht:
+{SCHEMA_PARA}"""
+
+
 def parse_json(text: str) -> dict:
     t = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     s, e = t.find("{"), t.rfind("}")

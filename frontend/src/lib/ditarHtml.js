@@ -1,5 +1,5 @@
 import { esc, td, b, smartRow, figRow, list, TABLE } from "./htmlUtil";
-import { buildKolektiveHtml, buildAkHtml, buildAkJavorHtml, buildAkTremujorHtml, buildAk2Html } from "./ditarHtmlExtra";
+import { buildKolektiveHtml, buildAkHtml, buildAkJavorHtml, buildAkTremujorHtml, buildAk2Html, buildFleteHtml, buildAkEcuriaHtml, buildPara2Html } from "./ditarHtmlExtra";
 
 const LABELS = {
   sq: { fusha: "Fusha", lenda: "Lënda", shkalla: "Shkalla", klasa: "Klasa", data: "Data", tema: "Tema mësimore", situata: "Situata e të nxënit", rez: "Rezultatet e të nxënit të kompetencave të fushës sipas temës mësimore", kom: "Komunikimi", men: "Të menduarit", per: "Personale", fjalet: "Fjalët kyçe", burimet: "Burimet dhe Teknologjia", tek: "Teknologjia", lidhja: "Lidhja me fushat e tjera", metTitle: "Metodologjia dhe veprimtaritë e nxënësve", met: "METODOLOGJIA", pershk: "PËRSHKRIMI I VEPRIMTARIVE", f1: "Lidhja e temës me njohuritë e mëparshme të nxënësve", f2: "Ndërtimi i njohurive të reja", f3: "Prezantimi dhe demonstrimi i rezultateve", min: "minuta", teknika: "Teknika", hapi: "Hapi", vler: "Vlerësimi dhe feedback-u", niveli: "Niveli", feedback: "Feedback-u", dif: "Diferencimi (Nxënësit e avancuar dhe me AK)", avan: "Nxënësit e avancuar", ak: "Nxënësi me AK", mbes: "Mbështetja", det: "Detyrat dhe puna e pavarur", detyra: "Detyra", lvl: ["Bazë", "Mesatare", "E avancuar"], ref: "Refleksioni i mësuesit: (Të plotësohet pas mësimit)" },
@@ -18,6 +18,9 @@ export function buildDitarHtml(d) {
   if (d.lloji === "ak_javor") return buildAkJavorHtml(d);
   if (d.lloji === "ak_tremujor") return buildAkTremujorHtml(d);
   if (d.lloji === "ak2") return buildAk2Html(d);
+  if (d.lloji === "flete") return buildFleteHtml(d);
+  if (d.lloji === "ak_javor2" || d.lloji === "ak_mujor2") return buildAkEcuriaHtml(d);
+  if (d.lloji === "parashkollor2") return buildPara2Html(d);
   if (d.lloji === "standard90") return build90Html(d);
   const g = gjuhaPer(d.lenda);
   const para = d.lloji === "parashkollor";

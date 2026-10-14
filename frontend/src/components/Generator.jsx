@@ -4,6 +4,8 @@ import { Sparkles, Archive, LogOut, RotateCcw, Camera, MonitorSmartphone, Clock,
 import { klasatPer, KURRIKULAT, LLOJET_AK, licApi, errMsg, eshteFikse, paketaEmri } from "../lib/api";
 import { KolektiveFields, blankKlasat } from "./KolektiveFields";
 import { AkFields } from "./AkFields";
+import { ParaFields } from "./ParaFields";
+import { FileText } from "lucide-react";
 import { PhotoUpload } from "./PhotoUpload";
 import { DitarModal } from "./DitarModal";
 import { ArchiveModal } from "./ArchiveModal";
@@ -12,7 +14,7 @@ import { InstallButton } from "./InstallButton";
 const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`; };
 const blank = (lenda, n) => {
   const kl = klasatPer(n);
-  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), ore90: false, tema2: "", figura: false, dokumenti: "ditor", periudha: "", shenime: "", ditelindja: "", pozicioni: "Mësues ndihmës" };
+  return { lenda, klasa: kl.includes("Klasa 5") && n !== 0 ? "Klasa 5" : kl[0], data: today(), tema: "", lendaKurrikules: "", vitiShkollor: "2026-2027", kaAk: false, akInitials: "", smartlab: false, llojiAk: LLOJET_AK[0], koha: "45 min", klasat: blankKlasat(lenda), ore90: false, tema2: "", figura: false, kerkesa: "", grupi: "perzier", lendetPara: n === 15 ? ["Gjuhë Shqipe", "Matematikë"] : [], shkolla: "", dokumenti: "ditor", periudha: "", shenime: "", ditelindja: "", pozicioni: "Mësues ndihmës" };
 };
 
 export const Generator = ({ user, onLogout }) => {
@@ -20,6 +22,7 @@ export const Generator = ({ user, onLogout }) => {
   const kolektive = n === 14, akP = n === 16;
   const [f, setF] = useState(blank(user.lendet[0], n));
   const javor = akP && !["ditor", "ditor2"].includes(f.dokumenti);
+  const para = n === 15;
   const lejo90 = !kolektive && !akP && n !== 15;
   const toggle = (k) => () => setF({ ...f, [k]: !f[k] });
   const Tg = ({ k, icon: I, label, id }) => (
@@ -35,18 +38,19 @@ export const Generator = ({ user, onLogout }) => {
   const [archive, setArchive] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
 
-  const generate = async () => {
+  const generate = (flete) => async () => {
     const kaFoto = meFoto && images.length;
+    if (para && !f.lendetPara.length) return toast.error("Zgjidhni të paktën një lëndë.");
     const rreshta = kolektive ? f.klasat : [f];
     if (rreshta.some((k) => KURRIKULAT.includes(k.lenda) && !k.lendaKurrikules.trim())) return toast.error("Shkruani emrin e lëndës për kurrikulën.");
     if (!javor && !kaFoto && rreshta.some((k) => !k.tema.trim())) return toast.error("Ngarkoni foto të librit ose shkruani temën.");
     setBusy(true);
     try {
-      const { data } = await licApi().post("/ditar/generate", { ...f, ore90: f.ore90 && lejo90, images: meFoto ? images : [] });
+      const { data } = await licApi().post("/ditar/generate", { ...f, flete, ore90: f.ore90 && lejo90, images: meFoto ? images : [] });
       setDitar(data);
       setPerdorur((x) => x + 1);
-      setF((x) => ({ ...x, tema: data.tema }));
-      toast.success("Ditari u gjenerua!");
+      if (!flete && !kolektive && !javor) setF((x) => ({ ...x, tema: x.tema || data.tema }));
+      toast.success(flete ? "Fleta e punës u gjenerua!" : "Ditari u gjenerua!");
     } catch (e) { toast.error(errMsg(e)); }
     setBusy(false);
   };
@@ -97,9 +101,10 @@ export const Generator = ({ user, onLogout }) => {
 
           {kolektive && <KolektiveFields klasat={f.klasat} setKlasat={(klasat) => setF({ ...f, klasat })} lendet={user.lendet} />}
           {akP && <AkFields f={f} set={set} setF={setF} />}
+          {para && <ParaFields f={f} setF={setF} lendet={user.lendet} />}
 
           <div className="grid sm:grid-cols-2 gap-4">
-            {!kolektive && <>
+            {!kolektive && !para && <>
             <label><span className="lbl">Lënda</span>
               <select className="inp" value={f.lenda} onChange={set("lenda")} data-testid="lenda-select">{user.lendet.map((l) => <option key={l}>{l}</option>)}</select>
             </label>
@@ -116,7 +121,7 @@ export const Generator = ({ user, onLogout }) => {
             <label><span className="lbl">Viti shkollor</span><input className="inp" value={f.vitiShkollor} onChange={set("vitiShkollor")} data-testid="viti-input" /></label>
           </div>
           {!kolektive && (
-          <label className="block"><span className="lbl">{javor ? "Objektivat nga PEI" : akP ? "Tema / objektivi nga PEI" : f.ore90 && lejo90 ? "Tema 1 (Ora I)" : "Tema mësimore"} <span className="normal-case font-normal">{javor ? "(opsionale)" : "(opsionale nëse ngarkoni foto)"}</span></span>
+          <label className="block"><span className="lbl">{javor ? "Objektivat nga PEI" : para ? "Tema ditore" : akP ? "Tema / objektivi nga PEI" : f.ore90 && lejo90 ? "Tema 1 (Ora I)" : "Tema mësimore"} <span className="normal-case font-normal">{javor ? "(opsionale)" : "(opsionale nëse ngarkoni foto)"}</span></span>
             <input className="inp" placeholder="AI e nxjerr nga fotot nëse e lini bosh" value={f.tema} onChange={set("tema")} data-testid="tema-input" />
           </label>
           )}
@@ -134,9 +139,20 @@ export const Generator = ({ user, onLogout }) => {
             {f.kaAk && <input className="inp mt-3" placeholder="Inicialet, p.sh. A. B." value={f.akInitials} onChange={set("akInitials")} data-testid="ak-initials-input" />}
           </div>}
 
-          <button onClick={generate} disabled={busy} className="btn-primary w-full !py-4 text-base" data-testid="generate-btn">
-            {busy ? <><span className="spinner" /> AI po lexon librin dhe harton ditarin...</> : <><Sparkles size={18} /> Gjenero Ditarin</>}
-          </button>
+          <label className="block"><span className="lbl">Kërkesë specifike <span className="normal-case font-normal">(opsionale)</span></span>
+            <textarea className="inp min-h-[64px]" placeholder="P.sh. Përfshi një lojë me role në fazën e dytë, ose përqendrohu te ushtrimet e faqes 45..." value={f.kerkesa} onChange={set("kerkesa")} data-testid="kerkesa-input" />
+          </label>
+
+          <div className="flex flex-wrap gap-3">
+            <button onClick={generate(false)} disabled={busy} className="btn-primary !px-6" data-testid="generate-btn">
+              {busy ? <><span className="spinner" /> Duke punuar...</> : <><Sparkles size={16} /> Gjenero Ditarin</>}
+            </button>
+            {!javor && (
+              <button onClick={generate(true)} disabled={busy} className="btn-ghost border border-ink/20 !px-5" data-testid="generate-worksheet-btn">
+                <FileText size={16} /> Gjenero Fletë Pune
+              </button>
+            )}
+          </div>
         </section>
 
         <aside className="space-y-6 text-sm text-muted lg:pt-24">
