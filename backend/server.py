@@ -10,11 +10,22 @@ import uuid
 import random
 import string
 import logging
+import base64
+import io
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+try:
+    import google.generativeai as genai
+except Exception:  # pragma: no cover
+    genai = None
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+except Exception:  # pragma: no cover
+    LlmChat = None
+    UserMessage = None
+    ImageContent = None
 from ditar_ai import (FUSHA, PAKETA, AK_LENDET, KURRIKULAT, ROMAKE, SYSTEM, shkalla, klasa_nr, parse_json,
                       prompt_standard, prompt_kolektive, prompt_ak, prompt_90, prompt_ak2, FIGURA,
                       prompt_flete, prompt_ak_ecuria, prompt_para2, GRUPET)
@@ -25,7 +36,8 @@ load_dotenv(ROOT_DIR / '.env')
 
 client = AsyncIOMotorClient(os.environ['MONGO_URL'])
 db = client[os.environ['DB_NAME']]
-EMERGENT_LLM_KEY = os.environ['EMERGENT_LLM_KEY']
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
 ADMIN_PASSWORD = os.environ['ADMIN_PASSWORD']
 
 app = FastAPI()
@@ -369,47 +381,6 @@ def emri_lende(lenda: str, kurr: str) -> str:
             raise HTTPException(400, "Shkruani emrin e lëndës për kurrikulën.")
         return f"{lenda}: {kurr.strip()}"
     return lenda
-
-
-async def run_ai(prompt: str, images: List[str]) -> dict:
-    imgs = [ImageContent(image_base64=i.split(",", 1)[-1]) for i in images]
-    keys = [EMERGENT_LLM_KEY] + [k for k in (os.environ.get("GEMINI_KEY_2"), os.environ.get("GEMINI_KEY_3")) if k]
-    err = None
-    for key in keys:
-        try:
-            chat = LlmChat(api_key=key, session_id=str(uuid.uuid4()), system_message=SYSTEM).with_model("gemini", "gemini-3-flash-preview")
-            resp = await chat.send_message(UserMessage(text=prompt, file_contents=imgs or None))
-            return parse_json(resp if isinstance(resp, str) else str(resp))
-        except Exception as e:
-            err = e
-            logger.exception("AI error with key #%d", keys.index(key) + 1)
-    raise HTTPException(502, f"Analiza me AI dështoi. Provoni përsëri. ({str(err)[:120]})")
-
-
-async def make_figure(fig) -> Optional[dict]:
-    if not isinstance(fig, dict) or not fig.get("pershkrimi"):
-        return None
-    try:
-        data = await generate_figure(fig["pershkrimi"])
-        fid = uuid.uuid4().hex
-        res = put_object(f"{APP_NAME}/figura/{fid}.jpg", data, "image/jpeg")
-        await db.files.insert_one({"id": fid, "storage_path": res["path"], "content_type": "image/jpeg", "is_deleted": False, "created_at": now_iso()})
-        return {"id": fid, "titulli": fig.get("titulli", "")}
-    except Exception:
-        logger.exception("Figure generation failed")
-        return None
-
-
-def figure_bytes(fid: str) -> bytes:
-    return get_object(f"{APP_NAME}/figura/{fid}.jpg")
-
-
-@api.get("/figura/{fid}")
-async def figura(fid: str):
-    rec = await db.files.find_one({"id": fid, "is_deleted": False})
-    if not rec:
-        raise HTTPException(404, "Figura nuk u gjet")
-    return Response(content=get_object(rec["storage_path"]), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000"})
 
 
 def kolektive_items(body, lic, lejuara) -> list:
